@@ -18,7 +18,7 @@ A Power BI developer opens the web app and connects to their Power BI Semantic M
 **Acceptance Scenarios**:
 
 1. **Given** the user is on the app home page, **When** they provide their Power BI Semantic Model connection details and initiate analysis, **Then** the system connects to the model and displays a loading indicator while analysis runs.
-2. **Given** analysis is in progress, **When** the analysis completes, **Then** a list of findings is displayed, each showing severity (e.g., Error, Warning, Info), a human-readable description, the category (e.g., Performance, Naming, DAX Patterns), and the affected model object (table, column, measure, etc.).
+2. **Given** analysis is in progress, **When** the analysis completes, **Then** a list of findings is displayed, each showing severity (e.g., Error, Warning, Info), a human-readable description, the category (e.g., Performance, DAX Expressions, Naming Conventions), and the affected model object (table, column, measure, etc.).
 3. **Given** findings are displayed, **When** the user views the results, **Then** findings are grouped or filterable by category and sortable by severity, and a summary count (e.g., "3 Errors, 12 Warnings, 5 Info") is shown.
 4. **Given** the model has no best-practice violations, **When** analysis completes, **Then** the app displays a congratulatory message indicating the model passes all checks.
 
@@ -121,7 +121,7 @@ The web app provides a clean, intuitive interface with two main tabs — "Analyz
 ### Functional Requirements
 
 - **FR-001**: System MUST allow users to provide Power BI Semantic Model connection details and establish a connection.
-- **FR-002**: System MUST run a comprehensive best practices analysis against the connected Semantic Model, covering categories such as performance, naming conventions, DAX patterns, relationships, and data modeling.
+- **FR-002**: System MUST run a comprehensive best practices analysis against the connected Semantic Model, covering the BPA rule categories: Performance, DAX Expressions, Error Prevention, Maintenance, Naming Conventions, and Formatting.
 - **FR-003**: System MUST display analysis findings in a structured list with severity level (Error, Warning, Info), category, description, and affected model object.
 - **FR-004**: System MUST provide filtering and sorting capabilities on the findings list (by severity, category, status).
 - **FR-005**: System MUST display a summary of findings (count by severity) at the top of the results.
@@ -140,8 +140,8 @@ The web app provides a clean, intuitive interface with two main tabs — "Analyz
 
 ### Key Entities
 
-- **Semantic Model Connection**: Represents the active connection to a user's Power BI Semantic Model. Key attributes: connection status, model name, workspace name, last connected timestamp.
-- **Finding**: An individual best-practice violation or recommendation identified during analysis. Key attributes: unique identifier, severity, category, description, affected object (table/column/measure/relationship), fix status (Unfixed, In Progress, Fixed, Fix Failed).
+- **Semantic Model Connection**: Represents the active (ephemeral, in-memory) connection to a user's Power BI Semantic Model. Key attributes: connection status, model name, server address, database name, connected-at timestamp. Note: Connection state is not persisted — it is managed by the MCP client singleton on the backend.
+- **Finding**: An individual best-practice violation or recommendation identified during analysis. Key attributes: unique identifier, severity, category, description, affected object (table/column/measure/relationship), fix status (UNFIXED, IN_PROGRESS, FIXED, FAILED).
 - **AI Fix Session**: A record of an AI agent's attempt to fix a specific finding. Key attributes: finding reference, session start/end timestamps, step-by-step log (reasoning, actions, outcomes), overall result (success/failure).
 - **Analysis Run**: Represents a single execution of the best practices analyzer. Key attributes: run timestamp, total findings count by severity, associated Semantic Model.
 - **DAX Query**: A user-authored DAX query for execution. Key attributes: query text, execution status, execution time, result data, error message (if any).
