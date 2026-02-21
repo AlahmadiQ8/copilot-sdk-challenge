@@ -9,6 +9,13 @@ interface DaxEditorProps {
 export default function DaxEditor({ value, onChange, readOnly }: DaxEditorProps) {
   return (
     <div className="overflow-hidden rounded-lg border border-slate-700/50">
+      <textarea
+        className="sr-only"
+        aria-label="DAX query content"
+        value={value}
+        readOnly
+        tabIndex={-1}
+      />
       <Editor
         height="200px"
         defaultLanguage="plaintext"

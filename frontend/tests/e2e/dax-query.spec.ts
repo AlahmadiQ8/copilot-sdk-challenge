@@ -44,6 +44,10 @@ test.describe('DAX Query Flow (US5)', () => {
 
     // Explanation should appear
     await expect(page.getByText('summarizes total sales by year')).toBeVisible({ timeout: 3000 });
+
+    // Generated DAX should appear in the editor
+    const editorContent = page.getByLabel('DAX query content');
+    await expect(editorContent).toHaveValue(/SUMMARIZECOLUMNS/);
   });
 
   test('should show query history', async ({ page }) => {
