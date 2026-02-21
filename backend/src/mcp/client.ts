@@ -13,8 +13,8 @@ interface McpConnection {
 let connection: McpConnection | null = null;
 
 function getMcpCommand(): { command: string; args: string[] } {
-  const command = process.env.PBI_MCP_COMMAND || 'npx';
-  const argsStr = process.env.PBI_MCP_ARGS || '-y,@anthropic/powerbi-modeling-mcp';
+  const command = process.env.PBI_MCP_COMMAND || 'C:\\Users\\momohammad\\.vscode-insiders\\extensions\\analysis-services.powerbi-modeling-mcp-0.3.1-win32-arm64\\server\\powerbi-modeling-mcp.exe';
+  const argsStr = process.env.PBI_MCP_ARGS || '--start';
   const args = argsStr.split(',');
   return { command, args };
 }

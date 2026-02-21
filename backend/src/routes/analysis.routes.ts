@@ -39,7 +39,7 @@ analysisRouter.post('/run', async (_req, res, next) => {
   try {
     const runId = await runAnalysis();
     const run = await getAnalysisRun(runId);
-    res.json(run);
+    res.json({ runId, ...run });
   } catch (err) {
     next(err);
   }

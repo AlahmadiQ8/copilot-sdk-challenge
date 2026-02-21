@@ -67,7 +67,7 @@ describe('analysis.service', () => {
   });
 
   it('creates an analysis run and returns its ID', async () => {
-    mockCallTool.mockResolvedValue({ content: [{ text: '[]' }] });
+    mockCallTool.mockResolvedValue({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] });
     mockPrisma.analysisRun.findUnique.mockResolvedValue({
       id: 'run-1',
       status: 'RUNNING',
@@ -83,31 +83,29 @@ describe('analysis.service', () => {
   });
 
   it('evaluates property-check rules (DataType.Double)', async () => {
-    // Simulate tables, columns, measures, relationships
+    // Simulate tables, columns (MCP grouped format), measures, relationships
     mockCallTool
-      .mockResolvedValueOnce({ content: [{ text: '[]' }] }) // tables
+      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // tables
       .mockResolvedValueOnce({
         content: [
           {
-            text: JSON.stringify([
-              {
-                Name: 'Amount',
-                TableName: 'Sales',
-                DataType: 'Double',
-                Type: 'Data',
-              },
-              {
-                Name: 'ID',
-                TableName: 'Sales',
-                DataType: 'Int64',
-                Type: 'Data',
-              },
-            ]),
+            text: JSON.stringify({
+              success: true,
+              data: [
+                {
+                  tableName: 'Sales',
+                  columns: [
+                    { name: 'Amount', dataType: 'Double' },
+                    { name: 'ID', dataType: 'Int64' },
+                  ],
+                },
+              ],
+            }),
           },
         ],
       }) // columns
-      .mockResolvedValueOnce({ content: [{ text: '[]' }] }) // measures
-      .mockResolvedValueOnce({ content: [{ text: '[]' }] }); // relationships
+      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // measures
+      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }); // relationships
 
     mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-2' });
 
@@ -117,54 +115,53 @@ describe('analysis.service', () => {
     await new Promise((r) => setTimeout(r, 100));
 
     // Verify findings were created — the Double column should trigger the float rule
-    if (mockPrisma.finding.createMany.mock.calls.length > 0) {
-      const createCall = mockPrisma.finding.createMany.mock.calls[0][0];
-      const findings = createCall.data;
-      const floatFinding = findings.find(
-        (f: { ruleId: string }) => f.ruleId === 'FLOAT_CHECK',
-      );
-      if (floatFinding) {
-        expect(floatFinding.affectedObject).toContain('Amount');
-        expect(floatFinding.severity).toBe(2);
-      }
-    }
+    expect(mockPrisma.finding.createMany).toHaveBeenCalled();
+    const createCall = mockPrisma.finding.createMany.mock.calls[0][0];
+    const findings = createCall.data;
+    const floatFinding = findings.find(
+      (f: { ruleId: string }) => f.ruleId === 'FLOAT_CHECK',
+    );
+    expect(floatFinding).toBeDefined();
+    expect(floatFinding.affectedObject).toContain('Amount');
+    expect(floatFinding.severity).toBe(2);
   });
 
   it('evaluates regex-based DAX rules (IFERROR)', async () => {
     mockCallTool
-      .mockResolvedValueOnce({ content: [{ text: '[]' }] }) // tables
-      .mockResolvedValueOnce({ content: [{ text: '[]' }] }) // columns
+      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // tables
+      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // columns
       .mockResolvedValueOnce({
         content: [
           {
-            text: JSON.stringify([
-              {
-                Name: 'SafeCalc',
-                TableName: 'Measures',
-                Expression: 'IFERROR(SUM(Sales[Amount]), 0)',
-              },
-            ]),
+            text: JSON.stringify({
+              success: true,
+              data: [
+                {
+                  name: 'SafeCalc',
+                  tableName: 'Measures',
+                  expression: 'IFERROR(SUM(Sales[Amount]), 0)',
+                },
+              ],
+            }),
           },
         ],
       }) // measures
-      .mockResolvedValueOnce({ content: [{ text: '[]' }] }); // relationships
+      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }); // relationships
 
     mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-3' });
 
     await runAnalysis();
     await new Promise((r) => setTimeout(r, 100));
 
-    if (mockPrisma.finding.createMany.mock.calls.length > 0) {
-      const createCall = mockPrisma.finding.createMany.mock.calls[0][0];
-      const findings = createCall.data;
-      const iferrorFinding = findings.find(
-        (f: { ruleId: string }) => f.ruleId === 'IFERROR_CHECK',
-      );
-      if (iferrorFinding) {
-        expect(iferrorFinding.severity).toBe(3);
-        expect(iferrorFinding.affectedObject).toContain('SafeCalc');
-      }
-    }
+    expect(mockPrisma.finding.createMany).toHaveBeenCalled();
+    const createCall = mockPrisma.finding.createMany.mock.calls[0][0];
+    const findings = createCall.data;
+    const iferrorFinding = findings.find(
+      (f: { ruleId: string }) => f.ruleId === 'IFERROR_CHECK',
+    );
+    expect(iferrorFinding).toBeDefined();
+    expect(iferrorFinding.severity).toBe(3);
+    expect(iferrorFinding.affectedObject).toContain('SafeCalc');
   });
 
   it('getFindings returns filtered and paginated results', async () => {

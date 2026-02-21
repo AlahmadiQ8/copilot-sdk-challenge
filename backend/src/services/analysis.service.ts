@@ -31,39 +31,42 @@ async function fetchModelMetadata(): Promise<ModelObject[]> {
     });
   }
 
-  // Fetch columns
+  // Fetch columns — MCP returns grouped by table: { tableName, columns: [...] }
   const columnsResult = await client.callTool({
     name: 'column_operations',
     arguments: { request: { operation: 'List' } },
   });
-  const columns = parseToolResult(columnsResult);
-  for (const col of columns) {
-    const tableName = col.TableName || col.tableName || '';
-    objects.push({
-      name: `'${tableName}'[${col.Name || col.name}]`,
-      type: col.Type === 'Calculated' ? 'CalculatedColumn' : 'DataColumn',
-      properties: col,
-      expression: String(col.Expression || col.expression || ''),
-    });
+  const columnGroups = parseToolResult(columnsResult);
+  for (const group of columnGroups) {
+    const tableName = String(group.tableName || group.TableName || '');
+    const cols = Array.isArray(group.columns) ? group.columns as Record<string, unknown>[] : [group];
+    for (const col of cols) {
+      objects.push({
+        name: `'${tableName}'[${col.name || col.Name}]`,
+        type: (col.isCalculated || col.Type === 'Calculated') ? 'CalculatedColumn' : 'DataColumn',
+        properties: { ...col, TableName: tableName, DataType: col.dataType || col.DataType },
+        expression: String(col.expression || col.Expression || ''),
+      });
+    }
   }
 
-  // Fetch measures
+  // Fetch measures — MCP returns flat list with name, displayFolder
   const measuresResult = await client.callTool({
     name: 'measure_operations',
     arguments: { request: { operation: 'List' } },
   });
   const measures = parseToolResult(measuresResult);
   for (const m of measures) {
-    const tableName = m.TableName || m.tableName || '';
+    const tableName = String(m.TableName || m.tableName || '');
     objects.push({
-      name: `'${tableName}'[${m.Name || m.name}]`,
+      name: tableName ? `'${tableName}'[${m.Name || m.name}]` : `[${m.Name || m.name}]`,
       type: 'Measure',
       properties: m,
       expression: String(m.Expression || m.expression || ''),
     });
   }
 
-  // Fetch relationships
+  // Fetch relationships — MCP returns fromTable/toTable (lowercase)
   const relsResult = await client.callTool({
     name: 'relationship_operations',
     arguments: { request: { operation: 'List' } },
@@ -71,7 +74,7 @@ async function fetchModelMetadata(): Promise<ModelObject[]> {
   const rels = parseToolResult(relsResult);
   for (const r of rels) {
     objects.push({
-      name: String(r.Name || r.name || `${r.FromTable}->${r.ToTable}`),
+      name: String(r.name || r.Name || `${r.fromTable || r.FromTable}->${r.toTable || r.ToTable}`),
       type: 'Relationship',
       properties: r,
     });
@@ -85,7 +88,10 @@ function parseToolResult(result: unknown): Array<Record<string, unknown>> {
   if (!content || content.length === 0 || !content[0].text) return [];
   try {
     const parsed = JSON.parse(content[0].text);
-    return Array.isArray(parsed) ? parsed : [parsed];
+    // MCP tools return { success, data: [...] } — unwrap the data array
+    if (Array.isArray(parsed)) return parsed;
+    if (parsed && Array.isArray(parsed.data)) return parsed.data;
+    return [parsed];
   } catch {
     return [];
   }
@@ -165,21 +171,12 @@ function evaluateRule(
 function evaluateExpression(expr: string, obj: ModelObject): boolean {
   const props = obj.properties;
 
-  // Property check patterns: PropertyName = "Value" or PropertyName == value
-  const propCheckMatch = expr.match(
-    /^(\w+)\s*(=|==|!=|<>)\s*"?([^"]*)"?\s*$/,
-  );
-  if (propCheckMatch) {
-    const [, propName, operator, value] = propCheckMatch;
-    const actualValue = String(props[propName] ?? '');
-    switch (operator) {
-      case '=':
-      case '==':
-        return actualValue === value;
-      case '!=':
-      case '<>':
-        return actualValue !== value;
-    }
+  // DataType check: DataType = DataType.X (must be before generic property check)
+  const dataTypeMatch = expr.match(/DataType\s*=\s*DataType\.(\w+)/);
+  if (dataTypeMatch) {
+    const expectedType = dataTypeMatch[1];
+    const actualType = String(props.DataType || props.dataType || '');
+    return actualType.includes(expectedType);
   }
 
   // Regex-based DAX check: RegEx.IsMatch(Expression, "pattern")
@@ -195,12 +192,21 @@ function evaluateExpression(expr: string, obj: ModelObject): boolean {
     }
   }
 
-  // DataType check: DataType = DataType.X
-  const dataTypeMatch = expr.match(/DataType\s*=\s*DataType\.(\w+)/);
-  if (dataTypeMatch) {
-    const expectedType = dataTypeMatch[1];
-    const actualType = String(props.DataType || props.dataType || '');
-    return actualType.includes(expectedType);
+  // Property check patterns: PropertyName = "Value" or PropertyName == value
+  const propCheckMatch = expr.match(
+    /^(\w+)\s*(=|==|!=|<>)\s*"?([^"]*)"?\s*$/,
+  );
+  if (propCheckMatch) {
+    const [, propName, operator, value] = propCheckMatch;
+    const actualValue = String(props[propName] ?? '');
+    switch (operator) {
+      case '=':
+      case '==':
+        return actualValue === value;
+      case '!=':
+      case '<>':
+        return actualValue !== value;
+    }
   }
 
   // IsHidden check

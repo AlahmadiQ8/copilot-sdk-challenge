@@ -16,13 +16,25 @@ export async function getInstances(): Promise<{ instances: PbiInstance[] }> {
   if (content && content.length > 0 && content[0].text) {
     try {
       const parsed = JSON.parse(content[0].text);
-      instances = Array.isArray(parsed)
-        ? parsed.map((inst: Record<string, string>) => ({
-            name: inst.name || inst.Name || `${inst.serverAddress || inst.ServerAddress}`,
-            serverAddress: inst.serverAddress || inst.ServerAddress || '',
-            databaseName: inst.databaseName || inst.DatabaseName || '',
-          }))
-        : [];
+      // MCP returns { success, data: [...] } where data contains instance objects
+      const items: Array<Record<string, unknown>> = Array.isArray(parsed)
+        ? parsed
+        : Array.isArray(parsed.data)
+          ? parsed.data
+          : [];
+      instances = items.map((inst) => ({
+        name:
+          (inst.name as string) ||
+          (inst.parentWindowTitle as string) ||
+          `localhost:${inst.port}`,
+        serverAddress:
+          (inst.serverAddress as string) ||
+          `localhost:${inst.port}`,
+        databaseName:
+          (inst.databaseName as string) ||
+          (inst.parentWindowTitle as string) ||
+          '',
+      }));
     } catch {
       logger.warn({ raw: content[0].text }, 'Failed to parse instances response');
     }

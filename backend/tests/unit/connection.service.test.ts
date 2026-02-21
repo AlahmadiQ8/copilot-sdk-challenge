@@ -23,7 +23,7 @@ describe('connection.service', () => {
   });
 
   describe('getInstances', () => {
-    it('returns parsed PBI instances', async () => {
+    it('returns parsed PBI instances from flat array', async () => {
       mockListInstances.mockResolvedValue({
         content: [
           {
@@ -39,6 +39,35 @@ describe('connection.service', () => {
       expect(result.instances).toHaveLength(2);
       expect(result.instances[0].name).toBe('Model1');
       expect(result.instances[0].serverAddress).toBe('localhost:12345');
+    });
+
+    it('returns parsed PBI instances from MCP data envelope', async () => {
+      mockListInstances.mockResolvedValue({
+        content: [
+          {
+            text: JSON.stringify({
+              success: true,
+              message: 'Found 1 local PowerBI Desktop and Analysis Services instances',
+              operation: 'ListLocalInstances',
+              data: [
+                {
+                  processId: 36284,
+                  port: 61460,
+                  connectionString: 'Data Source=localhost:61460',
+                  parentProcessName: 'PBIDesktop',
+                  parentWindowTitle: 'Risk Management Report',
+                },
+              ],
+            }),
+          },
+        ],
+      });
+
+      const result = await getInstances();
+      expect(result.instances).toHaveLength(1);
+      expect(result.instances[0].name).toBe('Risk Management Report');
+      expect(result.instances[0].serverAddress).toBe('localhost:61460');
+      expect(result.instances[0].databaseName).toBe('Risk Management Report');
     });
 
     it('handles empty instances list', async () => {
