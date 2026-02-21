@@ -87,7 +87,7 @@ export default function DaxQueryPage() {
             onClick={handleExecute}
             disabled={executing || !query.trim()}
             className="rounded-lg bg-sky-600 px-5 py-2 text-sm font-semibold text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-40"
-            aria-label={executing ? 'Query running' : 'Run DAX query'}
+            aria-label={executing ? 'Query running' : undefined}
           >
             {executing ? (
               <span className="flex items-center gap-2">

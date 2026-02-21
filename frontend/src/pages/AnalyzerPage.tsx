@@ -132,7 +132,7 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             onClick={handleRunAnalysis}
             disabled={analyzing}
             className="rounded-lg bg-sky-600 px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-600/20 transition hover:bg-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-400 focus:ring-offset-2 focus:ring-offset-slate-900 disabled:opacity-40"
-            aria-label={analyzing ? 'Analysis in progress' : currentRun ? 'Rerun best-practices analysis' : 'Run best-practices analysis'}
+            aria-label={analyzing ? 'Analysis in progress' : undefined}
           >
             {analyzing ? (
               <span className="flex items-center gap-2">

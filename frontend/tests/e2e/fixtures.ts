@@ -31,7 +31,7 @@ async function setupMockRoutes(page: Page): Promise<void> {
     },
     {
       pattern: '**/api/connection/status',
-      handler: (route) => route.fulfill({ json: mockResponses.connectionStatus }),
+      handler: (route) => route.fulfill({ json: mockResponses.disconnected }),
     },
     {
       pattern: '**/api/connection/health',

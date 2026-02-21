@@ -82,7 +82,7 @@ test.describe('Connect & Analyze Flow (US1)', () => {
 
     // Check finding card structure
     const errorFinding = page.locator('article', { hasText: 'Avoid inactive relationships' });
-    await expect(errorFinding.getByText('Error')).toBeVisible();
+    await expect(errorFinding.getByText('Error', { exact: true })).toBeVisible();
     await expect(errorFinding.getByText('Error Prevention')).toBeVisible();
     await expect(errorFinding.getByText('AI Fix')).toBeVisible();
   });
@@ -98,7 +98,7 @@ test.describe('Connect & Analyze Flow (US1)', () => {
     await expect(page).toHaveURL('/dax');
 
     // Navigate back to Analyzer
-    await page.click('text=Analyzer');
+    await page.locator('nav[aria-label="Main navigation"]').getByText('Analyzer').click();
     await expect(page).toHaveURL('/');
   });
 

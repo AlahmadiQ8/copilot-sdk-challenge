@@ -25,17 +25,18 @@ test.describe('DAX Query Flow (US5)', () => {
     await page.getByRole('button', { name: /Run Query/i }).click();
 
     // Results table should appear with columns and data
-    await expect(page.getByText('Sales[OrderDate]')).toBeVisible({ timeout: 3000 });
-    await expect(page.getByText('Sales[Amount]')).toBeVisible();
-    await expect(page.getByText('3 rows')).toBeVisible();
-    await expect(page.getByText('42ms')).toBeVisible();
+    const editorSection = page.locator('section[aria-label="DAX query editor"]');
+    await expect(editorSection.getByText('Sales[OrderDate]')).toBeVisible({ timeout: 3000 });
+    await expect(editorSection.getByText('Sales[Amount]')).toBeVisible();
+    await expect(editorSection.getByText('3 rows')).toBeVisible();
+    await expect(editorSection.getByText('42ms')).toBeVisible();
   });
 
   test('should generate DAX from natural language', async ({ page }) => {
     await page.goto('/dax');
 
     // Fill in the natural language input
-    const nlInput = page.getByPlaceholderText(/describe/i);
+    const nlInput = page.getByPlaceholder(/describe/i);
     await nlInput.fill('Show total sales by year');
 
     // Click Generate DAX
