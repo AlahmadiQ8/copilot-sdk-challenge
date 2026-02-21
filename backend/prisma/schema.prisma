@@ -1,0 +1,74 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model AnalysisRun {
+  id            String    @id @default(cuid())
+  modelName     String
+  serverAddress String
+  databaseName  String
+  startedAt     DateTime  @default(now())
+  completedAt   DateTime?
+  status        String    @default("RUNNING")
+  errorCount    Int       @default(0)
+  warningCount  Int       @default(0)
+  infoCount     Int       @default(0)
+  findings      Finding[]
+}
+
+model Finding {
+  id              String       @id @default(cuid())
+  analysisRunId   String
+  analysisRun     AnalysisRun  @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  ruleId          String
+  ruleName        String
+  category        String
+  severity        Int
+  description     String
+  affectedObject  String
+  objectType      String
+  fixStatus       String       @default("UNFIXED")
+  fixSummary      String?
+  hasAutoFix      Boolean      @default(false)
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  fixSession      FixSession?
+}
+
+model FixSession {
+  id             String           @id @default(cuid())
+  findingId      String           @unique
+  finding        Finding          @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  agentSessionId String?
+  status         String           @default("PENDING")
+  startedAt      DateTime         @default(now())
+  completedAt    DateTime?
+  steps          FixSessionStep[]
+}
+
+model FixSessionStep {
+  id           String     @id @default(cuid())
+  fixSessionId String
+  fixSession   FixSession @relation(fields: [fixSessionId], references: [id], onDelete: Cascade)
+  stepNumber   Int
+  eventType    String
+  content      String
+  timestamp    DateTime   @default(now())
+}
+
+model DaxQuery {
+  id              String   @id @default(cuid())
+  queryText       String
+  naturalLanguage String?
+  status          String   @default("PENDING")
+  resultData      String?
+  rowCount        Int?
+  executionTimeMs Int?
+  errorMessage    String?
+  createdAt       DateTime @default(now())
+}
