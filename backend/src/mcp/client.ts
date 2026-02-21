@@ -59,6 +59,25 @@ export async function connectToModel(
     },
   });
 
+  // Validate the MCP response — check for isError flag and success:false in content
+  if ((result as { isError?: boolean }).isError) {
+    const content = (result as { content?: Array<{ text?: string }> })?.content;
+    const text = content?.[0]?.text;
+    let message = 'MCP connection failed';
+    if (text) {
+      try {
+        const parsed = JSON.parse(text);
+        message = parsed.message || message;
+      } catch {
+        message = text;
+      }
+    }
+    logger.error({ serverAddress, databaseName, result }, 'MCP connection failed');
+    const err = new Error(message) as Error & { statusCode?: number };
+    err.statusCode = 502;
+    throw err;
+  }
+
   logger.info({ serverAddress, databaseName, result }, 'Connected to model');
 
   if (connection) {

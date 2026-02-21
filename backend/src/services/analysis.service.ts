@@ -251,10 +251,14 @@ function normProps(obj: Record<string, unknown>): Record<string, unknown> {
 }
 
 function parseToolResult(result: unknown): Array<Record<string, unknown>> {
+  // Check for MCP error response
+  if ((result as { isError?: boolean })?.isError) return [];
   const content = (result as { content?: Array<{ text?: string }> })?.content;
   if (!content || content.length === 0 || !content[0].text) return [];
   try {
     const parsed = JSON.parse(content[0].text);
+    // Also check for success:false in the parsed content
+    if (parsed && parsed.success === false) return [];
     if (Array.isArray(parsed)) return parsed;
     if (parsed && Array.isArray(parsed.data)) return parsed.data;
     return [parsed];
@@ -265,10 +269,14 @@ function parseToolResult(result: unknown): Array<Record<string, unknown>> {
 
 /** Parse full MCP response object (not just data array) */
 function parseToolResultRaw(result: unknown): Record<string, unknown> | null {
+  // Check for MCP error response
+  if ((result as { isError?: boolean })?.isError) return null;
   const content = (result as { content?: Array<{ text?: string }> })?.content;
   if (!content || content.length === 0 || !content[0].text) return null;
   try {
-    return JSON.parse(content[0].text);
+    const parsed = JSON.parse(content[0].text);
+    if (parsed && parsed.success === false) return null;
+    return parsed;
   } catch {
     return null;
   }
@@ -871,6 +879,10 @@ async function processAnalysis(runId: string, log: ReturnType<typeof childLogger
     log.info('Starting analysis');
 
     const [metadata, rules] = await Promise.all([fetchModelMetadata(), getRawRules()]);
+
+    if (metadata.length === 0) {
+      throw new Error('Failed to fetch model metadata — MCP server may not be connected');
+    }
 
     log.info({ objectCount: metadata.length, ruleCount: rules.length }, 'Metadata and rules loaded');
 
