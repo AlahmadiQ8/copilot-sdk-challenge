@@ -48,31 +48,41 @@ export async function connectToModel(
 ): Promise<void> {
   const client = await spawnMcpClient();
 
-  const result = await client.callTool({
-    name: 'connection_operations',
-    arguments: {
-      request: {
-        operation: 'Connect',
-        dataSource: serverAddress,
-        initialCatalog: databaseName,
+  let result;
+  try {
+    result = await client.callTool({
+      name: 'connection_operations',
+      arguments: {
+        request: {
+          operation: 'Connect',
+          dataSource: serverAddress,
+        },
       },
-    },
-  });
+    });
+  } catch (callErr) {
+    // MCP tool call itself failed — tear down the stale process so the next
+    // attempt spawns a fresh one.
+    logger.error({ err: callErr, serverAddress, databaseName }, 'MCP Connect tool call failed');
+    await teardownMcpProcess();
+    throw callErr;
+  }
 
   // Validate the MCP response — check for isError flag and success:false in content
-  if ((result as { isError?: boolean }).isError) {
-    const content = (result as { content?: Array<{ text?: string }> })?.content;
-    const text = content?.[0]?.text;
-    let message = 'MCP connection failed';
-    if (text) {
-      try {
-        const parsed = JSON.parse(text);
-        message = parsed.message || message;
-      } catch {
-        message = text;
-      }
-    }
+  const content = (result as { content?: Array<{ text?: string }> })?.content;
+  const text = content?.[0]?.text;
+  let parsedContent: Record<string, unknown> | null = null;
+  if (text) {
+    try { parsedContent = JSON.parse(text); } catch { /* not JSON */ }
+  }
+
+  const isError = (result as { isError?: boolean }).isError === true;
+  const isSuccessFalse = parsedContent?.success === false;
+
+  if (isError || isSuccessFalse) {
+    const message = (parsedContent?.message as string) || text || 'MCP connection failed';
     logger.error({ serverAddress, databaseName, result }, 'MCP connection failed');
+    // Tear down the MCP process so the next connect attempt spawns a fresh one
+    await teardownMcpProcess();
     const err = new Error(message) as Error & { statusCode?: number };
     err.statusCode = 502;
     throw err;
@@ -85,6 +95,12 @@ export async function connectToModel(
     connection.databaseName = databaseName;
     connection.connectedAt = new Date();
   }
+}
+
+async function teardownMcpProcess(): Promise<void> {
+  if (!connection) return;
+  try { await connection.transport.close(); } catch { /* already closed */ }
+  connection = null;
 }
 
 export async function disconnectFromModel(): Promise<void> {
@@ -140,7 +156,7 @@ export async function healthCheck(): Promise<boolean> {
   try {
     await connection.client.callTool({
       name: 'connection_operations',
-      arguments: { request: { operation: 'GetStatus' } },
+      arguments: { request: { operation: 'GetConnection' } },
     });
     return true;
   } catch {
