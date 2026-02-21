@@ -12,45 +12,45 @@ test.describe('AI Fix Flow (US2)', () => {
   test('should show AI Fix button on unfixed findings with autofix', async ({ page }) => {
     await connectAndAnalyze(page);
 
-    // The error finding should have AI Fix button
-    const errorFinding = page.locator('article', { hasText: 'Avoid inactive relationships' });
-    await expect(errorFinding.getByRole('button', { name: /AI Fix/ })).toBeVisible();
+    // The error finding compact row should have AI Fix button
+    const errorRow = page.locator('[role="row"]', { hasText: "'Sales'[OrderDate]" });
+    await expect(errorRow.getByRole('button', { name: /AI Fix/ })).toBeVisible();
 
-    // The warning finding should also have AI Fix button
-    const warningFinding = page.locator('article', { hasText: 'Set SummarizeBy to None' });
-    await expect(warningFinding.getByRole('button', { name: /AI Fix/ })).toBeVisible();
+    // The warning finding compact rows should also have AI Fix button
+    const warningRow = page.locator('[role="row"]', { hasText: "'Customer'[CustomerKey]" });
+    await expect(warningRow.getByRole('button', { name: /AI Fix/ })).toBeVisible();
   });
 
   test('should not show AI Fix button on already fixed findings', async ({ page }) => {
     await connectAndAnalyze(page);
 
-    // The info finding (already fixed) should show "Fixed" status and Inspect button instead
-    const fixedFinding = page.locator('article', { hasText: 'Hide foreign keys' });
-    await expect(fixedFinding.getByText('Fixed')).toBeVisible();
-    await expect(fixedFinding.getByRole('button', { name: /Inspect/ })).toBeVisible();
+    // The fixed finding compact row should show "Fixed" status and Inspect button
+    const fixedRow = page.locator('[role="row"]', { hasText: "'Sales'[ProductKey]" });
+    await expect(fixedRow.getByText('Fixed')).toBeVisible();
+    await expect(fixedRow.getByRole('button', { name: /Inspect/ })).toBeVisible();
     // Should NOT have an AI Fix button
-    await expect(fixedFinding.getByRole('button', { name: /AI Fix/ })).not.toBeVisible();
+    await expect(fixedRow.getByRole('button', { name: /AI Fix/ })).not.toBeVisible();
   });
 
   test('should trigger fix when AI Fix is clicked', async ({ page }) => {
     await connectAndAnalyze(page);
 
-    const errorFinding = page.locator('article', { hasText: 'Avoid inactive relationships' });
-    const fixButton = errorFinding.getByRole('button', { name: /AI Fix/ });
+    const errorRow = page.locator('[role="row"]', { hasText: "'Sales'[OrderDate]" });
+    const fixButton = errorRow.getByRole('button', { name: /AI Fix/ });
 
     // Click the fix button
     await fixButton.click();
 
     // Button should show "Fixing…" state
-    await expect(errorFinding.getByText('Fixing…')).toBeVisible();
+    await expect(errorRow.getByText('Fixing…')).toBeVisible();
   });
 
   test('should open session inspector for fixed findings', async ({ page }) => {
     await connectAndAnalyze(page);
 
-    // Click Inspect on the fixed finding
-    const fixedFinding = page.locator('article', { hasText: 'Hide foreign keys' });
-    await fixedFinding.getByRole('button', { name: /Inspect/ }).click();
+    // Click Inspect on the fixed finding compact row
+    const fixedRow = page.locator('[role="row"]', { hasText: "'Sales'[ProductKey]" });
+    await fixedRow.getByRole('button', { name: /Inspect/ }).click();
 
     // Session inspector should appear with steps
     await expect(page.getByText('Analyzing the inactive relationship')).toBeVisible({ timeout: 3000 });
@@ -61,8 +61,8 @@ test.describe('AI Fix Flow (US2)', () => {
     await connectAndAnalyze(page);
 
     // Open inspector
-    const fixedFinding = page.locator('article', { hasText: 'Hide foreign keys' });
-    await fixedFinding.getByRole('button', { name: /Inspect/ }).click();
+    const fixedRow = page.locator('[role="row"]', { hasText: "'Sales'[ProductKey]" });
+    await fixedRow.getByRole('button', { name: /Inspect/ }).click();
     await expect(page.getByText('Analyzing the inactive relationship')).toBeVisible({ timeout: 3000 });
 
     // Close it

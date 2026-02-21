@@ -80,11 +80,15 @@ test.describe('Connect & Analyze Flow (US1)', () => {
     await page.getByRole('button', { name: /Run Analysis/i }).click();
     await expect(page.getByText('Avoid inactive relationships')).toBeVisible({ timeout: 5000 });
 
-    // Check finding card structure
-    const errorFinding = page.locator('article', { hasText: 'Avoid inactive relationships' });
-    await expect(errorFinding.getByText('Error', { exact: true })).toBeVisible();
-    await expect(errorFinding.getByText('Error Prevention')).toBeVisible();
-    await expect(errorFinding.getByText('AI Fix')).toBeVisible();
+    // Check grouped finding structure
+    // Group header should show severity badge, rule name, and category
+    const groupHeader = page.locator('button[aria-expanded="true"]', { hasText: 'Avoid inactive relationships' });
+    await expect(groupHeader.getByText('Error', { exact: true })).toBeVisible();
+    await expect(groupHeader.getByText('Error Prevention')).toBeVisible();
+
+    // Compact row inside the group should show the AI Fix button
+    const compactRow = page.locator('[role="row"]', { hasText: "'Sales'[OrderDate]" });
+    await expect(compactRow.getByText('AI Fix')).toBeVisible();
   });
 
   test('should navigate between tabs', async ({ page }) => {

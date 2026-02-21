@@ -158,6 +158,7 @@ export default function FindingsGroupedList({
                   <FindingCard
                     key={f.id}
                     finding={f}
+                    compact
                     onFixTriggered={() => onFixTriggered(f.id)}
                     onInspectSession={() => onInspectSession(f.id)}
                   />

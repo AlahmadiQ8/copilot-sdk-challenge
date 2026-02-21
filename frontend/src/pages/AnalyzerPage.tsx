@@ -256,7 +256,7 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             ) : findings.length > 0 ? (
               <FindingsGroupedList
                 findings={findings}
-                onFixTriggered={(findingId) => {
+                onFixTriggered={() => {
                   setTimeout(() => {
                     if (currentRun) fetchFindings(currentRun.id, { severity, category, fixStatus, sortBy, sortOrder });
                   }, 2000);

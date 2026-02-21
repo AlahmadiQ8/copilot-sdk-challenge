@@ -3,6 +3,7 @@ import type { Finding } from '../types/api';
 
 interface FindingCardProps {
   finding: Finding;
+  compact?: boolean;
   onFixTriggered?: (findingId: string) => void;
   onInspectSession?: (findingId: string) => void;
 }
@@ -20,7 +21,7 @@ const fixStatusConfig: Record<string, { label: string; color: string }> = {
   FAILED: { label: 'Fix Failed', color: 'text-red-400' },
 };
 
-export default function FindingCard({ finding, onFixTriggered, onInspectSession }: FindingCardProps) {
+export default function FindingCard({ finding, compact, onFixTriggered, onInspectSession }: FindingCardProps) {
   const [fixing, setFixing] = useState(false);
   const sev = severityConfig[finding.severity] || severityConfig[1];
   const fix = fixStatusConfig[finding.fixStatus] || fixStatusConfig.UNFIXED;
@@ -29,6 +30,41 @@ export default function FindingCard({ finding, onFixTriggered, onInspectSession 
     setFixing(true);
     onFixTriggered?.(finding.id);
   };
+
+  if (compact) {
+    return (
+      <div
+        className="group flex items-center gap-3 rounded-md border border-slate-700/40 bg-slate-800/30 px-3 py-2 transition hover:border-slate-600/50 hover:bg-slate-800/50"
+        role="row"
+        aria-label={`${finding.affectedObject} (${finding.objectType})`}
+      >
+        <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-200">
+          {finding.affectedObject}
+        </span>
+        <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">{finding.objectType}</span>
+        <span className={`shrink-0 text-xs font-medium ${fix.color}`}>{fix.label}</span>
+        {finding.hasAutoFix && finding.fixStatus === 'UNFIXED' && (
+          <button
+            onClick={handleFix}
+            disabled={fixing}
+            className="shrink-0 rounded-md bg-violet-600/80 px-2 py-0.5 text-xs font-medium text-white transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
+            aria-label={`AI Fix: ${finding.affectedObject}`}
+          >
+            {fixing ? 'Fixing…' : 'AI Fix'}
+          </button>
+        )}
+        {(finding.fixStatus === 'FIXED' || finding.fixStatus === 'FAILED') && (
+          <button
+            onClick={() => onInspectSession?.(finding.id)}
+            className="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+            aria-label={`Inspect fix session for ${finding.affectedObject}`}
+          >
+            Inspect
+          </button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <article
