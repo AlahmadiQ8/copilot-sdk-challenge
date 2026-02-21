@@ -1,6 +1,5 @@
 import { CopilotClient, SessionEvent } from '@github/copilot-sdk';
 import prisma from '../models/prisma.js';
-import { getMcpClient } from '../mcp/client.js';
 import { getRawRules } from './rules.service.js';
 import { logger, childLogger } from '../middleware/logger.js';
 
@@ -82,13 +81,9 @@ async function processFix(
     const rules = await getRawRules();
     const rule = rules.find((r) => r.ID === finding.ruleId);
 
-    if (rule?.FixExpression && finding.hasAutoFix) {
-      await addStep('reasoning', `Applying deterministic fix for rule ${finding.ruleId}`);
-      await applyDeterministicFix(finding, rule.FixExpression, addStep, log);
-    } else {
-      await addStep('reasoning', `No deterministic fix available — using AI agent for ${finding.ruleId}`);
-      await applyAiFix(sessionId, finding, addStep, log);
-    }
+    const fixHint = rule?.FixExpression || null;
+    await addStep('reasoning', `Using AI agent to fix rule ${finding.ruleId}${fixHint ? ` (hint: ${fixHint})` : ''}`);
+    await applyAiFix(sessionId, finding, fixHint, addStep, log);
 
     // Mark as fixed
     await prisma.fixSession.update({
@@ -97,7 +92,7 @@ async function processFix(
     });
     await prisma.finding.update({
       where: { id: finding.id },
-      data: { fixStatus: 'FIXED', fixSummary: `Fixed via ${rule?.FixExpression ? 'deterministic' : 'AI'} fix` },
+      data: { fixStatus: 'FIXED', fixSummary: 'Fixed via AI agent' },
     });
 
     await addStep('message', 'Fix applied successfully');
@@ -119,73 +114,6 @@ async function processFix(
   }
 }
 
-async function applyDeterministicFix(
-  finding: { affectedObject: string; objectType: string },
-  fixExpression: string,
-  addStep: (eventType: StepEventType, content: string) => Promise<void>,
-  log: ReturnType<typeof childLogger>,
-): Promise<void> {
-  const client = getMcpClient();
-  if (!client) throw new Error('Not connected to a model');
-
-  // Parse common fix expressions
-  const propAssignment = fixExpression.match(/^(\w+)\s*=\s*(.+)$/);
-  if (propAssignment) {
-    const [, property, valueStr] = propAssignment;
-    const value = parseFixValue(valueStr);
-
-    await addStep('tool_call', JSON.stringify({
-      tool: getToolForObjectType(finding.objectType),
-      operation: 'Update',
-      property,
-      value,
-      object: finding.affectedObject,
-    }));
-
-    const result = await client.callTool({
-      name: getToolForObjectType(finding.objectType),
-      arguments: {
-        request: {
-          operation: 'Update',
-          name: extractObjectName(finding.affectedObject),
-          tableName: extractTableName(finding.affectedObject),
-          properties: { [property]: value },
-        },
-      },
-    });
-
-    await addStep('tool_result', JSON.stringify(result));
-    log.info({ property, value }, 'Deterministic fix applied');
-    return;
-  }
-
-  // Delete operations
-  if (fixExpression.includes('Delete()')) {
-    await addStep('tool_call', JSON.stringify({
-      tool: getToolForObjectType(finding.objectType),
-      operation: 'Delete',
-      object: finding.affectedObject,
-    }));
-
-    const result = await client.callTool({
-      name: getToolForObjectType(finding.objectType),
-      arguments: {
-        request: {
-          operation: 'Delete',
-          name: extractObjectName(finding.affectedObject),
-          tableName: extractTableName(finding.affectedObject),
-        },
-      },
-    });
-
-    await addStep('tool_result', JSON.stringify(result));
-    log.info('Deterministic delete fix applied');
-    return;
-  }
-
-  throw new Error(`Cannot parse deterministic fix expression: ${fixExpression}`);
-}
-
 async function applyAiFix(
   sessionId: string,
   finding: {
@@ -195,11 +123,16 @@ async function applyAiFix(
     affectedObject: string;
     objectType: string;
   },
+  fixHint: string | null,
   addStep: (eventType: StepEventType, content: string) => Promise<void>,
   log: ReturnType<typeof childLogger>,
 ): Promise<void> {
   const mcpCommand = process.env.PBI_MCP_COMMAND || 'C:\\Users\\momohammad\\.vscode-insiders\\extensions\\analysis-services.powerbi-modeling-mcp-0.3.1-win32-arm64\\server\\powerbi-modeling-mcp.exe';
   const mcpArgs = (process.env.PBI_MCP_ARGS || '--start').split(',');
+
+  const fixHintBlock = fixHint
+    ? `\n\nFix Hint (Tabular Editor expression): ${fixHint}\nThis hint describes the intended fix in Tabular Editor syntax. Translate it to the appropriate MCP tool call. For example:\n- "IsHidden = true" means set the isHidden property to true via an Update operation\n- "FormatString = \"#,0\"" means set the formatString property\n- "DataType = DataType.Decimal" means set the dataType to Decimal\n- "Delete()" means delete the object\n- "SummarizeBy = AggregateFunction.None" means set summarizeBy to None`
+    : '';
 
   const client = new CopilotClient();
   const session = await client.createSession({
@@ -221,7 +154,7 @@ Rule: ${finding.ruleName}
 Rule ID: ${finding.ruleId}
 Description: ${finding.description}
 Affected Object: ${finding.affectedObject}
-Object Type: ${finding.objectType}
+Object Type: ${finding.objectType}${fixHintBlock}
 
 Use the available MCP tools to inspect the model and apply the fix. Be precise and only modify what is necessary.`,
     },
@@ -250,48 +183,18 @@ Use the available MCP tools to inspect the model and apply the fix. Be precise a
 
   log.info('Starting AI fix session');
 
+  const fixPromptHint = fixHint
+    ? `\n\nThe recommended fix is: ${fixHint}. Translate this to the appropriate MCP tool operation.`
+    : '';
+
   await session.sendAndWait({
-    prompt: `Fix the best practice violation: "${finding.ruleName}" on object "${finding.affectedObject}" (${finding.objectType}). 
+    prompt: `Fix the best practice violation: "${finding.ruleName}" on object "${finding.affectedObject}" (${finding.objectType}).${fixPromptHint}
 
 First inspect the current state of the object, then apply the minimal fix needed to resolve the violation. After applying the fix, verify it was applied correctly.`,
   });
 
   await client.stop();
   log.info('AI fix session completed');
-}
-
-function getToolForObjectType(objectType: string): string {
-  const mapping: Record<string, string> = {
-    DataColumn: 'column_operations',
-    CalculatedColumn: 'column_operations',
-    Measure: 'measure_operations',
-    Table: 'table_operations',
-    Relationship: 'relationship_operations',
-  };
-  return mapping[objectType] || 'model_operations';
-}
-
-function extractObjectName(affectedObject: string): string {
-  // Format: 'TableName'[ObjectName] or just ObjectName
-  const match = affectedObject.match(/\[([^\]]+)\]/);
-  return match ? match[1] : affectedObject;
-}
-
-function extractTableName(affectedObject: string): string | undefined {
-  // Format: 'TableName'[ObjectName]
-  const match = affectedObject.match(/'([^']+)'/);
-  return match ? match[1] : undefined;
-}
-
-function parseFixValue(valueStr: string): unknown {
-  // Handle common value patterns
-  if (valueStr === 'true') return true;
-  if (valueStr === 'false') return false;
-  if (valueStr.startsWith('"') && valueStr.endsWith('"')) return valueStr.slice(1, -1);
-  if (valueStr.includes('DataType.')) return valueStr.split('.')[1];
-  if (valueStr.includes('SummarizeBy.')) return valueStr.split('.')[1];
-  if (/^\d+$/.test(valueStr)) return parseInt(valueStr, 10);
-  return valueStr;
 }
 
 export async function getFixSession(findingId: string) {

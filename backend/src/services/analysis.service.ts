@@ -342,7 +342,7 @@ function evaluateRule(
           description: rule.Description || '',
           affectedObject: obj.name,
           objectType: obj.type,
-          hasAutoFix: !!rule.FixExpression,
+          hasAutoFix: true,
         });
       }
     } catch {
@@ -799,7 +799,7 @@ async function evaluateDaxRules(
                 description: rule.Description || '',
                 affectedObject: 'Model',
                 objectType: 'Model',
-                hasAutoFix: !!rule.FixExpression,
+                hasAutoFix: true,
               });
             }
           }
@@ -828,7 +828,7 @@ async function evaluateDaxRules(
             description: rule.Description || '',
             affectedObject,
             objectType: dq.objectType,
-            hasAutoFix: !!rule.FixExpression,
+            hasAutoFix: true,
           });
           existingRuleObjects.add(key);
         }

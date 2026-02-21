@@ -20,7 +20,6 @@ vi.mock('../../src/models/prisma.js', () => ({ default: mockPrisma }));
 // Mock MCP client
 const mockCallTool = vi.fn();
 vi.mock('../../src/mcp/client.js', () => ({
-  getMcpClient: () => ({ callTool: mockCallTool }),
   getConnectionStatus: () => ({ connected: true, databaseName: 'TestModel' }),
 }));
 
@@ -121,7 +120,7 @@ describe('fix.service', () => {
       await expect(triggerFix('f3')).rejects.toThrow('Fix already in progress');
     });
 
-    it('uses deterministic fix path when FixExpression exists', async () => {
+    it('uses AI fix path with hint when FixExpression exists', async () => {
       mockPrisma.finding.findUnique.mockResolvedValue({
         id: 'f4',
         ruleId: 'HIDDEN_COLUMN',
@@ -137,23 +136,24 @@ describe('fix.service', () => {
       mockPrisma.finding.update.mockResolvedValue({});
       mockPrisma.fixSessionStep.create.mockResolvedValue({});
       mockPrisma.fixSession.update.mockResolvedValue({});
-      mockCallTool.mockResolvedValue({ content: [{ text: 'OK' }] });
 
       await triggerFix('f4');
 
       // Wait for async processing
       await new Promise((r) => setTimeout(r, 200));
 
-      // Should have called MCP tool to apply the fix
-      if (mockCallTool.mock.calls.length > 0) {
-        const call = mockCallTool.mock.calls[0];
-        expect(call[0].name).toBe('column_operations');
-        expect(call[0].arguments.request.operation).toBe('Update');
-        expect(call[0].arguments.request.properties.IsHidden).toBe(true);
-      }
+      // Should have logged a reasoning step with the hint
+      const reasoningCalls = mockPrisma.fixSessionStep.create.mock.calls.filter(
+        (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === 'reasoning',
+      );
+      expect(reasoningCalls.length).toBeGreaterThan(0);
+      const hintStep = reasoningCalls.find(
+        (c: unknown[]) => (c[0] as { data: { content: string } }).data.content.includes('IsHidden = true'),
+      );
+      expect(hintStep).toBeDefined();
     });
 
-    it('uses AI fix path when no FixExpression exists', async () => {
+    it('uses AI fix path without hint when no FixExpression exists', async () => {
       mockPrisma.finding.findUnique.mockResolvedValue({
         id: 'f5',
         ruleId: 'NO_FIX_RULE',
@@ -162,7 +162,7 @@ describe('fix.service', () => {
         affectedObject: "'Measures'[Total]",
         objectType: 'Measure',
         fixStatus: 'UNFIXED',
-        hasAutoFix: false,
+        hasAutoFix: true,
         fixSession: null,
       });
       mockPrisma.fixSession.create.mockResolvedValue({ id: 'fs5' });
@@ -175,8 +175,14 @@ describe('fix.service', () => {
       // Wait for async processing
       await new Promise((r) => setTimeout(r, 200));
 
-      // In AI path, CopilotClient should have been instantiated
-      // (verified by the mock setup)
+      // Reasoning step should NOT have a hint
+      const reasoningCalls = mockPrisma.fixSessionStep.create.mock.calls.filter(
+        (c: unknown[]) => (c[0] as { data: { eventType: string } }).data.eventType === 'reasoning',
+      );
+      expect(reasoningCalls.length).toBeGreaterThan(0);
+      const firstReasoning = (reasoningCalls[0][0] as { data: { content: string } }).data.content;
+      expect(firstReasoning).toContain('NO_FIX_RULE');
+      expect(firstReasoning).not.toContain('hint');
     });
   });
 
