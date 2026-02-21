@@ -108,8 +108,8 @@ frontend/
 ```
 DATABASE_URL="file:./prisma/dev.db"
 PORT=3001
-PBI_MCP_COMMAND=npx
-PBI_MCP_ARGS=-y,@anthropic/powerbi-modeling-mcp
+PBI_MCP_COMMAND=C:\\Users\\momohammad\\.vscode-insiders\\extensions\\analysis-services.powerbi-modeling-mcp-0.3.1-win32-arm64\\server\\powerbi-modeling-mcp.exe
+PBI_MCP_ARGS=--start
 ```
 
 ### Frontend (.env)

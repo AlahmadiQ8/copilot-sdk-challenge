@@ -198,8 +198,8 @@ async function applyAiFix(
   addStep: (eventType: StepEventType, content: string) => Promise<void>,
   log: ReturnType<typeof childLogger>,
 ): Promise<void> {
-  const mcpCommand = process.env.PBI_MCP_COMMAND || 'npx';
-  const mcpArgs = (process.env.PBI_MCP_ARGS || '-y,@anthropic/powerbi-modeling-mcp').split(',');
+  const mcpCommand = process.env.PBI_MCP_COMMAND || 'C:\\Users\\momohammad\\.vscode-insiders\\extensions\\analysis-services.powerbi-modeling-mcp-0.3.1-win32-arm64\\server\\powerbi-modeling-mcp.exe';
+  const mcpArgs = (process.env.PBI_MCP_ARGS || '--start').split(',');
 
   const client = new CopilotClient();
   const session = await client.createSession({

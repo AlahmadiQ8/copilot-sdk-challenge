@@ -4,7 +4,38 @@ import { logger } from '../middleware/logger.js';
 
 export const fixRouter = Router();
 
-// POST /findings/:findingId/fix — Trigger AI auto-fix
+/**
+ * @openapi
+ * /api/findings/{findingId}/fix:
+ *   post:
+ *     summary: Trigger AI auto-fix for a finding
+ *     tags: [AI Fix]
+ *     parameters:
+ *       - in: path
+ *         name: findingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Fix initiated
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FixSession'
+ *       404:
+ *         description: Finding not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Fix already in progress or finding already fixed
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 fixRouter.post('/findings/:findingId/fix', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const findingId = req.params.findingId as string;
@@ -15,7 +46,26 @@ fixRouter.post('/findings/:findingId/fix', async (req: Request, res: Response, n
   }
 });
 
-// GET /findings/:findingId/fix/stream — SSE stream of fix progress
+/**
+ * @openapi
+ * /api/findings/{findingId}/fix/stream:
+ *   get:
+ *     summary: Stream fix progress via Server-Sent Events
+ *     tags: [AI Fix]
+ *     parameters:
+ *       - in: path
+ *         name: findingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: SSE stream of fix progress events
+ *         content:
+ *           text/event-stream:
+ *             schema:
+ *               type: string
+ */
 fixRouter.get('/findings/:findingId/fix/stream', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const findingId = req.params.findingId as string;
@@ -57,7 +107,32 @@ fixRouter.get('/findings/:findingId/fix/stream', async (req: Request, res: Respo
   }
 });
 
-// GET /findings/:findingId/fix/session — Get fix session details
+/**
+ * @openapi
+ * /api/findings/{findingId}/fix/session:
+ *   get:
+ *     summary: Get the AI fix session details for a finding
+ *     tags: [AI Fix]
+ *     parameters:
+ *       - in: path
+ *         name: findingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Fix session details
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/FixSessionDetail'
+ *       404:
+ *         description: Fix session not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 fixRouter.get('/findings/:findingId/fix/session', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const findingId = req.params.findingId as string;

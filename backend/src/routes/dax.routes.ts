@@ -4,7 +4,38 @@ import { generateDax } from '../services/dax-generation.service.js';
 
 export const daxRouter = Router();
 
-// POST /dax/execute — Execute a DAX query
+/**
+ * @openapi
+ * /api/dax/execute:
+ *   post:
+ *     summary: Execute a DAX query against the connected model
+ *     tags: [DAX Queries]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/DaxQueryRequest'
+ *     responses:
+ *       200:
+ *         description: Query result
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/DaxQueryResult'
+ *       400:
+ *         description: Invalid DAX query
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       422:
+ *         description: No model connected
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 daxRouter.post('/execute', async (req, res, next) => {
   try {
     const { query } = req.body;
@@ -26,7 +57,39 @@ daxRouter.post('/execute', async (req, res, next) => {
   }
 });
 
-// POST /dax/generate — Generate DAX from natural language
+/**
+ * @openapi
+ * /api/dax/generate:
+ *   post:
+ *     summary: Generate a DAX query from natural language using AI
+ *     tags: [DAX Queries]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/DaxGenerateRequest'
+ *     responses:
+ *       200:
+ *         description: Generated DAX query
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 query:
+ *                   type: string
+ *                   description: Generated DAX query
+ *                 explanation:
+ *                   type: string
+ *                   description: AI explanation of the query
+ *       400:
+ *         description: Invalid request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 daxRouter.post('/generate', async (req, res, next) => {
   try {
     const { prompt } = req.body;
@@ -40,7 +103,36 @@ daxRouter.post('/generate', async (req, res, next) => {
   }
 });
 
-// GET /dax/history — List query history
+/**
+ * @openapi
+ * /api/dax/history:
+ *   get:
+ *     summary: Get DAX query execution history
+ *     tags: [DAX Queries]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *     responses:
+ *       200:
+ *         description: Query history
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 queries:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/DaxQueryHistoryItem'
+ */
 daxRouter.get('/history', async (req, res, next) => {
   try {
     const limit = parseInt(req.query.limit as string) || 20;
@@ -52,7 +144,41 @@ daxRouter.get('/history', async (req, res, next) => {
   }
 });
 
-// POST /dax/:queryId/cancel — Cancel a running query
+/**
+ * @openapi
+ * /api/dax/{queryId}/cancel:
+ *   post:
+ *     summary: Cancel a running DAX query
+ *     tags: [DAX Queries]
+ *     parameters:
+ *       - in: path
+ *         name: queryId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Query cancelled
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *       404:
+ *         description: Query not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       409:
+ *         description: Query not running
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
 daxRouter.post('/:queryId/cancel', async (req, res, next) => {
   try {
     const queryId = req.params.queryId as string;

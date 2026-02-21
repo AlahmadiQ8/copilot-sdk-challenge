@@ -5,8 +5,8 @@ import { logger, childLogger } from '../middleware/logger.js';
 export async function generateDax(
   prompt: string,
 ): Promise<{ queryId: string; query: string; explanation: string }> {
-  const mcpCommand = process.env.PBI_MCP_COMMAND || 'npx';
-  const mcpArgs = (process.env.PBI_MCP_ARGS || '-y,@anthropic/powerbi-modeling-mcp').split(',');
+  const mcpCommand = process.env.PBI_MCP_COMMAND || 'C:\\Users\\momohammad\\.vscode-insiders\\extensions\\analysis-services.powerbi-modeling-mcp-0.3.1-win32-arm64\\server\\powerbi-modeling-mcp.exe';
+  const mcpArgs = (process.env.PBI_MCP_ARGS || '--start').split(',');
 
   const log = childLogger({ operation: 'dax-generation' });
   log.info({ prompt }, 'Starting DAX generation');
