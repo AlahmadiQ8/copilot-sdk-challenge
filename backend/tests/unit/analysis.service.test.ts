@@ -56,6 +56,11 @@ vi.mock('../../src/services/rules.service.js', () => ({
 
 const { runAnalysis, getFindings } = await import('../../src/services/analysis.service.js');
 
+// Helper to create an empty MCP response
+const emptyResponse = () => ({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] });
+// Helper to create stats response with no tables
+const emptyStats = () => ({ content: [{ text: JSON.stringify({ success: true, data: { Tables: [] } }) }] });
+
 describe('analysis.service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -67,7 +72,14 @@ describe('analysis.service', () => {
   });
 
   it('creates an analysis run and returns its ID', async () => {
-    mockCallTool.mockResolvedValue({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] });
+    // fetchModelMetadata: 4 parallel calls (tables, columns, rels, stats) + 1 fallback measure List
+    mockCallTool
+      .mockResolvedValueOnce(emptyResponse()) // table_operations List
+      .mockResolvedValueOnce(emptyResponse()) // column_operations List
+      .mockResolvedValueOnce(emptyResponse()) // relationship_operations List
+      .mockResolvedValueOnce(emptyStats())    // model_operations GetStats
+      .mockResolvedValueOnce(emptyResponse()); // measure_operations List (fallback)
+
     mockPrisma.analysisRun.findUnique.mockResolvedValue({
       id: 'run-1',
       status: 'RUNNING',
@@ -83,9 +95,9 @@ describe('analysis.service', () => {
   });
 
   it('evaluates property-check rules (DataType.Double)', async () => {
-    // Simulate tables, columns (MCP grouped format), measures, relationships
+    // 4 parallel calls (tables, columns, rels, stats) + 1 fallback measure List
     mockCallTool
-      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // tables
+      .mockResolvedValueOnce(emptyResponse()) // table_operations List
       .mockResolvedValueOnce({
         content: [
           {
@@ -103,16 +115,17 @@ describe('analysis.service', () => {
             }),
           },
         ],
-      }) // columns
-      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // measures
-      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }); // relationships
+      }) // column_operations List
+      .mockResolvedValueOnce(emptyResponse()) // relationship_operations List
+      .mockResolvedValueOnce(emptyStats())    // model_operations GetStats
+      .mockResolvedValueOnce(emptyResponse()); // measure_operations List (fallback)
 
     mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-2' });
 
     await runAnalysis();
 
     // Wait for async processing
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 200));
 
     // Verify findings were created — the Double column should trigger the float rule
     expect(mockPrisma.finding.createMany).toHaveBeenCalled();
@@ -127,9 +140,31 @@ describe('analysis.service', () => {
   });
 
   it('evaluates regex-based DAX rules (IFERROR)', async () => {
+    // 4 parallel + stats has table with measure → table Get + measure Get
     mockCallTool
-      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // tables
-      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }) // columns
+      .mockResolvedValueOnce(emptyResponse()) // table_operations List
+      .mockResolvedValueOnce(emptyResponse()) // column_operations List
+      .mockResolvedValueOnce(emptyResponse()) // relationship_operations List
+      .mockResolvedValueOnce({
+        content: [
+          {
+            text: JSON.stringify({
+              success: true,
+              data: { Tables: [{ name: 'Measures', measureCount: 1, isHidden: false }] },
+            }),
+          },
+        ],
+      }) // model_operations GetStats
+      .mockResolvedValueOnce({
+        content: [
+          {
+            text: JSON.stringify({
+              success: true,
+              data: [{ name: 'Measures', measures: ['SafeCalc'] }],
+            }),
+          },
+        ],
+      }) // table_operations Get (batch) — returns data as array
       .mockResolvedValueOnce({
         content: [
           {
@@ -145,13 +180,12 @@ describe('analysis.service', () => {
             }),
           },
         ],
-      }) // measures
-      .mockResolvedValueOnce({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] }); // relationships
+      }); // measure_operations Get (batch) — returns data as array
 
     mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-3' });
 
     await runAnalysis();
-    await new Promise((r) => setTimeout(r, 100));
+    await new Promise((r) => setTimeout(r, 200));
 
     expect(mockPrisma.finding.createMany).toHaveBeenCalled();
     const createCall = mockPrisma.finding.createMany.mock.calls[0][0];

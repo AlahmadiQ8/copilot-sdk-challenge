@@ -1,13 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
-// Mock fetch globally
-const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
+// Mock fs.readFileSync
+vi.mock('fs', () => ({
+  readFileSync: vi.fn(),
+}));
 
-// Import after mocking
-const { getRulesForApi, getRawRules, clearRulesCache } = await import(
-  '../../src/services/rules.service.js'
-);
+import { readFileSync } from 'fs';
 
 const sampleRules = [
   {
@@ -40,40 +38,36 @@ const sampleRules = [
   },
 ];
 
+// Import after mocking
+const { getRulesForApi, getRawRules, clearRulesCache } = await import(
+  '../../src/services/rules.service.js'
+);
+
 describe('rules.service', () => {
   beforeEach(() => {
     clearRulesCache();
-    mockFetch.mockReset();
+    vi.mocked(readFileSync).mockReset();
   });
 
-  it('fetches and parses rules from remote URL', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => sampleRules,
-    });
+  it('loads and parses rules from local file', async () => {
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify(sampleRules));
 
     const rules = await getRawRules();
     expect(rules).toHaveLength(3);
     expect(rules[0].ID).toBe('AVOID_FLOATING_POINT');
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(readFileSync).toHaveBeenCalledTimes(1);
   });
 
   it('caches rules on subsequent calls', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => sampleRules,
-    });
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify(sampleRules));
 
     await getRawRules();
     await getRawRules();
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(readFileSync).toHaveBeenCalledTimes(1);
   });
 
   it('returns API-formatted rules via getRulesForApi', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => sampleRules,
-    });
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify(sampleRules));
 
     const apiRules = await getRulesForApi();
     expect(apiRules).toHaveLength(3);
@@ -90,31 +84,23 @@ describe('rules.service', () => {
   });
 
   it('filters rules by category', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => sampleRules,
-    });
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify(sampleRules));
 
     const filtered = await getRulesForApi('Performance');
     expect(filtered).toHaveLength(1);
     expect(filtered[0].category).toBe('Performance');
   });
 
-  it('throws on HTTP error', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      statusText: 'Internal Server Error',
+  it('throws on missing file', async () => {
+    vi.mocked(readFileSync).mockImplementationOnce(() => {
+      throw new Error('ENOENT: no such file or directory');
     });
 
-    await expect(getRawRules()).rejects.toThrow('Failed to fetch BPA rules');
+    await expect(getRawRules()).rejects.toThrow('ENOENT');
   });
 
   it('handles rules wrapped in an object', async () => {
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ Rules: sampleRules }),
-    });
+    vi.mocked(readFileSync).mockReturnValueOnce(JSON.stringify({ Rules: sampleRules }));
 
     const rules = await getRawRules();
     expect(rules).toHaveLength(3);

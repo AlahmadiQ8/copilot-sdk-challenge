@@ -1,0 +1,120 @@
+[
+  {
+    "ruleId": "AVOID_FLOATING_POINT_DATA_TYPES",
+    "description": "Find columns with Double data type",
+    "query": "EVALUATE FILTER(INFO.COLUMNS(), [ExplicitDataType] = 8)",
+    "objectType": "DataColumn",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "columnName": "[ExplicitName]"
+    }
+  },
+  {
+    "ruleId": "PROVIDE_FORMAT_STRING_FOR_MEASURES",
+    "description": "Find visible measures without a format string",
+    "query": "EVALUATE FILTER(INFO.MEASURES(), [FormatString] = \"\" && [IsHidden] = FALSE)",
+    "objectType": "Measure",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "measureName": "[Name]"
+    }
+  },
+  {
+    "ruleId": "EXPRESSION_RELIANT_OBJECTS_MUST_HAVE_AN_EXPRESSION",
+    "description": "Find measures with empty expressions",
+    "query": "EVALUATE FILTER(INFO.MEASURES(), ISBLANK([Expression]))",
+    "objectType": "Measure",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "measureName": "[Name]"
+    }
+  },
+  {
+    "ruleId": "ENSURE_TABLES_HAVE_RELATIONSHIPS",
+    "description": "Find tables not in any relationship",
+    "query": "EVALUATE VAR _relTables = UNION(SELECTCOLUMNS(INFO.RELATIONSHIPS(), \"ID\", [FromTableID]), SELECTCOLUMNS(INFO.RELATIONSHIPS(), \"ID\", [ToTableID])) RETURN FILTER(INFO.TABLES(), NOT([ID] IN _relTables) && [IsHidden] = FALSE)",
+    "objectType": "Table",
+    "mapResult": {
+      "tableName": "[Name]"
+    }
+  },
+  {
+    "ruleId": "RELATIONSHIP_COLUMNS_SAME_DATA_TYPE",
+    "description": "Find relationships where from/to column data types differ",
+    "query": "EVALUATE FILTER(INFO.RELATIONSHIPS(), [FromColumnDataType] <> [ToColumnDataType])",
+    "objectType": "Relationship",
+    "mapResult": {
+      "fromTable": "[FromTableID]",
+      "toTable": "[ToTableID]"
+    }
+  },
+  {
+    "ruleId": "REDUCE_NUMBER_OF_CALCULATED_COLUMNS",
+    "description": "Count calculated columns in model (threshold > 5)",
+    "query": "EVALUATE ROW(\"CalcColCount\", COUNTROWS(FILTER(INFO.COLUMNS(), [Type] = 2)))",
+    "objectType": "Model",
+    "mapResult": {
+      "count": "[CalcColCount]"
+    },
+    "threshold": 5
+  },
+  {
+    "ruleId": "NUMERIC_COLUMN_SUMMARIZE_BY",
+    "description": "Find visible numeric columns with SummarizeBy not set to None",
+    "query": "EVALUATE FILTER(INFO.COLUMNS(), ([ExplicitDataType] = 6 || [ExplicitDataType] = 8 || [ExplicitDataType] = 10) && [SummarizeBy] <> \"None\" && [IsHidden] = FALSE)",
+    "objectType": "DataColumn",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "columnName": "[ExplicitName]"
+    }
+  },
+  {
+    "ruleId": "AVOID_USING_THE_IFERROR_FUNCTION",
+    "description": "Find measures using IFERROR",
+    "query": "EVALUATE FILTER(INFO.MEASURES(), CONTAINSSTRING([Expression], \"IFERROR\"))",
+    "objectType": "Measure",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "measureName": "[Name]"
+    }
+  },
+  {
+    "ruleId": "REDUCE_USAGE_OF_CALCULATED_COLUMNS_THAT_USE_THE_RELATED_FUNCTION",
+    "description": "Find calculated columns using RELATED",
+    "query": "EVALUATE FILTER(INFO.COLUMNS(), [Type] = 2 && CONTAINSSTRING([Expression], \"RELATED\"))",
+    "objectType": "CalculatedColumn",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "columnName": "[ExplicitName]"
+    }
+  },
+  {
+    "ruleId": "USE_THE_DIVIDE_FUNCTION_FOR_DIVISION",
+    "description": "Find measures using / operator instead of DIVIDE",
+    "query": "EVALUATE FILTER(INFO.MEASURES(), CONTAINSSTRING([Expression], \"] /\") || CONTAINSSTRING([Expression], \") /\"))",
+    "objectType": "Measure",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "measureName": "[Name]"
+    }
+  },
+  {
+    "ruleId": "OBJECTS_WITH_NO_DESCRIPTION",
+    "description": "Find visible tables without descriptions",
+    "query": "EVALUATE FILTER(INFO.TABLES(), ISBLANK([Description]) && [IsHidden] = FALSE)",
+    "objectType": "Table",
+    "mapResult": {
+      "tableName": "[Name]"
+    }
+  },
+  {
+    "ruleId": "UNNECESSARY_MEASURES",
+    "description": "Find hidden measures (candidates for removal)",
+    "query": "EVALUATE FILTER(INFO.MEASURES(), [IsHidden] = TRUE)",
+    "objectType": "Measure",
+    "mapResult": {
+      "tableName": "[TableID]",
+      "measureName": "[Name]"
+    }
+  }
+]

@@ -23,8 +23,20 @@ registerRoutes(app);
 
 app.use(errorHandler);
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`Server running on http://localhost:${PORT}`);
 });
+
+function shutdown() {
+  logger.info('Shutting down server...');
+  server.close(() => {
+    process.exit(0);
+  });
+  // Force exit if graceful shutdown takes too long
+  setTimeout(() => process.exit(1), 3000);
+}
+
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
 
 export default app;

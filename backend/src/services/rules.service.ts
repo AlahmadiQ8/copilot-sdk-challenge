@@ -1,8 +1,8 @@
+import { readFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { logger } from '../middleware/logger.js';
 import type { BpaRuleResponse } from '../types/api.js';
-
-const BPA_RULES_URL =
-  'https://raw.githubusercontent.com/microsoft/Analysis-Services/refs/heads/master/BestPracticeRules/BPARules.json';
 
 interface RawBpaRule {
   ID: string;
@@ -16,29 +16,22 @@ interface RawBpaRule {
   CompatibilityLevel?: number;
 }
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const BPA_RULES_PATH = join(__dirname, '..', 'data', 'bpa-rules.json');
+
 let cachedRules: RawBpaRule[] | null = null;
-let cacheTimestamp = 0;
-const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 
 export async function fetchBpaRules(): Promise<RawBpaRule[]> {
-  const now = Date.now();
-  if (cachedRules && now - cacheTimestamp < CACHE_TTL_MS) {
-    return cachedRules;
-  }
+  if (cachedRules) return cachedRules;
 
-  logger.info('Fetching BPA rules from GitHub');
-  const response = await fetch(BPA_RULES_URL);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch BPA rules: ${response.status} ${response.statusText}`);
-  }
-
-  const data = await response.json();
-  // The JSON may be an array directly or wrapped in an object
+  logger.info({ path: BPA_RULES_PATH }, 'Loading BPA rules from local file');
+  const raw = readFileSync(BPA_RULES_PATH, 'utf-8');
+  const data = JSON.parse(raw);
   const rules: RawBpaRule[] = Array.isArray(data) ? data : data.Rules ?? data.rules ?? [];
 
   cachedRules = rules;
-  cacheTimestamp = now;
-  logger.info({ count: rules.length }, 'BPA rules cached');
+  logger.info({ count: rules.length }, 'BPA rules loaded');
   return rules;
 }
 
@@ -65,5 +58,4 @@ export async function getRawRules(): Promise<RawBpaRule[]> {
 
 export function clearRulesCache(): void {
   cachedRules = null;
-  cacheTimestamp = 0;
 }

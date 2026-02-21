@@ -4,7 +4,8 @@
   "description": "Power BI Best Practices Analyzer & AI Auto-Fix - Backend API",
   "type": "module",
   "scripts": {
-    "dev": "tsx watch src/index.ts",
+    "dev": "tsx watch --clear-screen=false src/index.ts",
+    "kill-port": "powershell -Command \"Get-NetTCPConnection -LocalPort 3001 -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -ErrorAction SilentlyContinue }\"",
     "build": "tsc",
     "start": "node dist/src/index.js",
     "test": "vitest run",
