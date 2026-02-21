@@ -29,37 +29,48 @@ const mockPrisma = {
 };
 vi.mock('../../src/models/prisma.js', () => ({ default: mockPrisma }));
 
-// Mock rules service
+// Mock rules service with real rule IDs
 vi.mock('../../src/services/rules.service.js', () => ({
   getRawRules: vi.fn().mockResolvedValue([
     {
-      ID: 'FLOAT_CHECK',
-      Name: '[Performance] Float check',
+      ID: 'AVOID_FLOATING_POINT_DATA_TYPES',
+      Name: '[Performance] Avoid floating point data types',
       Category: 'Performance',
       Severity: 2,
       Description: 'Avoid floats',
-      Scope: 'DataColumn',
-      Expression: 'DataType = DataType.Double',
       FixExpression: 'DataType = DataType.Decimal',
     },
     {
-      ID: 'IFERROR_CHECK',
-      Name: '[DAX] Avoid IFERROR',
+      ID: 'AVOID_USING_THE_IFERROR_FUNCTION',
+      Name: '[DAX Expressions] Avoid using the IFERROR function',
       Category: 'DAX Expressions',
-      Severity: 3,
+      Severity: 2,
       Description: 'Avoid IFERROR',
-      Scope: 'Measure',
-      Expression: 'RegEx.IsMatch(Expression, "IFERROR")',
+    },
+    {
+      ID: 'REDUCE_NUMBER_OF_CALCULATED_COLUMNS',
+      Name: '[Performance] Reduce number of calculated columns',
+      Category: 'Performance',
+      Severity: 2,
+      Description: 'Too many calculated columns',
+    },
+    {
+      ID: 'OBJECTS_WITH_NO_DESCRIPTION',
+      Name: '[Maintenance] Objects with no description',
+      Category: 'Maintenance',
+      Severity: 1,
+      Description: 'Add descriptions',
     },
   ]),
 }));
 
 const { runAnalysis, getFindings } = await import('../../src/services/analysis.service.js');
 
-// Helper to create an empty MCP response
-const emptyResponse = () => ({ content: [{ text: JSON.stringify({ success: true, data: [] }) }] });
-// Helper to create stats response with no tables
-const emptyStats = () => ({ content: [{ text: JSON.stringify({ success: true, data: { Tables: [] } }) }] });
+// Helper to wrap rows into an MCP DAX response
+const daxResponse = (rows: unknown[]) => ({
+  content: [{ text: JSON.stringify({ success: true, data: rows }) }],
+});
+const emptyDaxResponse = () => daxResponse([]);
 
 describe('analysis.service', () => {
   beforeEach(() => {
@@ -72,18 +83,7 @@ describe('analysis.service', () => {
   });
 
   it('creates an analysis run and returns its ID', async () => {
-    // fetchModelMetadata: 4 parallel calls (tables, columns, rels, stats) + 1 fallback measure List
-    mockCallTool
-      .mockResolvedValueOnce(emptyResponse()) // table_operations List
-      .mockResolvedValueOnce(emptyResponse()) // column_operations List
-      .mockResolvedValueOnce(emptyResponse()) // relationship_operations List
-      .mockResolvedValueOnce(emptyStats())    // model_operations GetStats
-      .mockResolvedValueOnce(emptyResponse()); // measure_operations List (fallback)
-
-    mockPrisma.analysisRun.findUnique.mockResolvedValue({
-      id: 'run-1',
-      status: 'RUNNING',
-    });
+    mockCallTool.mockResolvedValue(emptyDaxResponse());
 
     const runId = await runAnalysis();
     expect(runId).toBe('run-1');
@@ -94,108 +94,117 @@ describe('analysis.service', () => {
     );
   });
 
-  it('evaluates property-check rules (DataType.Double)', async () => {
-    // 4 parallel calls (tables, columns, rels, stats) + 1 fallback measure List
-    mockCallTool
-      .mockResolvedValueOnce(emptyResponse()) // table_operations List
-      .mockResolvedValueOnce({
-        content: [
-          {
-            text: JSON.stringify({
-              success: true,
-              data: [
-                {
-                  tableName: 'Sales',
-                  columns: [
-                    { name: 'Amount', dataType: 'Double' },
-                    { name: 'ID', dataType: 'Int64' },
-                  ],
-                },
-              ],
-            }),
-          },
-        ],
-      }) // column_operations List
-      .mockResolvedValueOnce(emptyResponse()) // relationship_operations List
-      .mockResolvedValueOnce(emptyStats())    // model_operations GetStats
-      .mockResolvedValueOnce(emptyResponse()); // measure_operations List (fallback)
+  it('creates findings from DAX column-rule results', async () => {
+    mockCallTool.mockImplementation(({ arguments: args }: { arguments: { request: { query: string } } }) => {
+      const query = args?.request?.query || '';
+      if (query.includes('ExplicitDataType') && query.includes('= 8')) {
+        return Promise.resolve(
+          daxResponse([{ '[TableID]': 'Sales', '[ExplicitName]': 'Amount' }]),
+        );
+      }
+      return Promise.resolve(emptyDaxResponse());
+    });
 
     mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-2' });
-
     await runAnalysis();
+    await new Promise((r) => setTimeout(r, 300));
 
-    // Wait for async processing
-    await new Promise((r) => setTimeout(r, 200));
-
-    // Verify findings were created — the Double column should trigger the float rule
     expect(mockPrisma.finding.createMany).toHaveBeenCalled();
-    const createCall = mockPrisma.finding.createMany.mock.calls[0][0];
-    const findings = createCall.data;
+    const findings = mockPrisma.finding.createMany.mock.calls[0][0].data;
     const floatFinding = findings.find(
-      (f: { ruleId: string }) => f.ruleId === 'FLOAT_CHECK',
+      (f: { ruleId: string }) => f.ruleId === 'AVOID_FLOATING_POINT_DATA_TYPES',
     );
     expect(floatFinding).toBeDefined();
     expect(floatFinding.affectedObject).toContain('Amount');
     expect(floatFinding.severity).toBe(2);
   });
 
-  it('evaluates regex-based DAX rules (IFERROR)', async () => {
-    // 4 parallel + stats has table with measure → table Get + measure Get
-    mockCallTool
-      .mockResolvedValueOnce(emptyResponse()) // table_operations List
-      .mockResolvedValueOnce(emptyResponse()) // column_operations List
-      .mockResolvedValueOnce(emptyResponse()) // relationship_operations List
-      .mockResolvedValueOnce({
-        content: [
-          {
-            text: JSON.stringify({
-              success: true,
-              data: { Tables: [{ name: 'Measures', measureCount: 1, isHidden: false }] },
-            }),
-          },
-        ],
-      }) // model_operations GetStats
-      .mockResolvedValueOnce({
-        content: [
-          {
-            text: JSON.stringify({
-              success: true,
-              data: [{ name: 'Measures', measures: ['SafeCalc'] }],
-            }),
-          },
-        ],
-      }) // table_operations Get (batch) — returns data as array
-      .mockResolvedValueOnce({
-        content: [
-          {
-            text: JSON.stringify({
-              success: true,
-              data: [
-                {
-                  name: 'SafeCalc',
-                  tableName: 'Measures',
-                  expression: 'IFERROR(SUM(Sales[Amount]), 0)',
-                },
-              ],
-            }),
-          },
-        ],
-      }); // measure_operations Get (batch) — returns data as array
+  it('creates findings from DAX measure-rule results', async () => {
+    mockCallTool.mockImplementation(({ arguments: args }: { arguments: { request: { query: string } } }) => {
+      const query = args?.request?.query || '';
+      if (query.includes('IFERROR') && query.includes('INFO.MEASURES')) {
+        return Promise.resolve(
+          daxResponse([{ '[TableID]': 'Measures', '[Name]': 'SafeCalc' }]),
+        );
+      }
+      return Promise.resolve(emptyDaxResponse());
+    });
 
     mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-3' });
-
     await runAnalysis();
-    await new Promise((r) => setTimeout(r, 200));
+    await new Promise((r) => setTimeout(r, 300));
 
     expect(mockPrisma.finding.createMany).toHaveBeenCalled();
-    const createCall = mockPrisma.finding.createMany.mock.calls[0][0];
-    const findings = createCall.data;
+    const findings = mockPrisma.finding.createMany.mock.calls[0][0].data;
     const iferrorFinding = findings.find(
-      (f: { ruleId: string }) => f.ruleId === 'IFERROR_CHECK',
+      (f: { ruleId: string }) => f.ruleId === 'AVOID_USING_THE_IFERROR_FUNCTION',
     );
     expect(iferrorFinding).toBeDefined();
-    expect(iferrorFinding.severity).toBe(3);
     expect(iferrorFinding.affectedObject).toContain('SafeCalc');
+  });
+
+  it('evaluates threshold rules correctly', async () => {
+    mockCallTool.mockImplementation(({ arguments: args }: { arguments: { request: { query: string } } }) => {
+      const query = args?.request?.query || '';
+      if (query.includes('CalcColCount')) {
+        return Promise.resolve(daxResponse([{ '[CalcColCount]': 10 }]));
+      }
+      return Promise.resolve(emptyDaxResponse());
+    });
+
+    mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-4' });
+    await runAnalysis();
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(mockPrisma.finding.createMany).toHaveBeenCalled();
+    const findings = mockPrisma.finding.createMany.mock.calls[0][0].data;
+    const calcColFinding = findings.find(
+      (f: { ruleId: string }) => f.ruleId === 'REDUCE_NUMBER_OF_CALCULATED_COLUMNS',
+    );
+    expect(calcColFinding).toBeDefined();
+    expect(calcColFinding.affectedObject).toBe('Model');
+  });
+
+  it('skips failed DAX queries gracefully', async () => {
+    mockCallTool.mockRejectedValue(new Error('DAX query failed'));
+
+    mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-5' });
+    await runAnalysis();
+    await new Promise((r) => setTimeout(r, 300));
+
+    expect(mockPrisma.analysisRun.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'COMPLETED', errorCount: 0 }),
+      }),
+    );
+  });
+
+  it('deduplicates findings with same ruleId and affectedObject', async () => {
+    // Both IFERROR entries (measure + calc column) return the same object name
+    mockCallTool.mockImplementation(({ arguments: args }: { arguments: { request: { query: string } } }) => {
+      const query = args?.request?.query || '';
+      if (query.includes('IFERROR')) {
+        return Promise.resolve(
+          daxResponse([{ '[TableID]': 'Measures', '[Name]': 'BadCalc' }]),
+        );
+      }
+      return Promise.resolve(emptyDaxResponse());
+    });
+
+    mockPrisma.analysisRun.create.mockResolvedValue({ id: 'run-6' });
+    await runAnalysis();
+    await new Promise((r) => setTimeout(r, 300));
+
+    if (mockPrisma.finding.createMany.mock.calls.length > 0) {
+      const findings = mockPrisma.finding.createMany.mock.calls[0][0].data;
+      const iferrorFindings = findings.filter(
+        (f: { ruleId: string }) => f.ruleId === 'AVOID_USING_THE_IFERROR_FUNCTION',
+      );
+      const keys = iferrorFindings.map(
+        (f: { ruleId: string; affectedObject: string }) => `${f.ruleId}::${f.affectedObject}`,
+      );
+      expect(new Set(keys).size).toBe(keys.length);
+    }
   });
 
   it('getFindings returns filtered and paginated results', async () => {

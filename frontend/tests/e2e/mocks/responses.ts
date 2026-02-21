@@ -2,6 +2,8 @@ const runId = 'run-001-mock';
 const findingId1 = 'finding-001-mock';
 const findingId2 = 'finding-002-mock';
 const findingId3 = 'finding-003-mock';
+const findingId4 = 'finding-004-mock';
+const findingId5 = 'finding-005-mock';
 const fixSessionId = 'fix-session-001-mock';
 
 export const mockResponses = {
@@ -35,8 +37,8 @@ export const mockResponses = {
     startedAt: new Date(Date.now() - 5000).toISOString(),
     completedAt: new Date().toISOString(),
     errorCount: 1,
-    warningCount: 1,
-    infoCount: 1,
+    warningCount: 2,
+    infoCount: 2,
   },
 
   analysisRuns: {
@@ -48,8 +50,8 @@ export const mockResponses = {
         startedAt: new Date(Date.now() - 5000).toISOString(),
         completedAt: new Date().toISOString(),
         errorCount: 1,
-        warningCount: 1,
-        infoCount: 1,
+        warningCount: 2,
+        infoCount: 2,
       },
     ],
     total: 1,
@@ -73,6 +75,34 @@ export const mockResponses = {
       },
       {
         id: findingId2,
+        ruleId: 'HIDE_FOREIGN_KEYS',
+        ruleName: 'Hide foreign keys',
+        category: 'Maintenance',
+        severity: 1,
+        description: 'Foreign key columns should be hidden from the report view.',
+        affectedObject: "'Sales'[ProductKey]",
+        objectType: 'Column',
+        fixStatus: 'FIXED',
+        fixSummary: 'Set IsHidden to true on Sales[ProductKey]',
+        hasAutoFix: true,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: findingId3,
+        ruleId: 'HIDE_FOREIGN_KEYS',
+        ruleName: 'Hide foreign keys',
+        category: 'Maintenance',
+        severity: 1,
+        description: 'Foreign key columns should be hidden from the report view.',
+        affectedObject: "'Sales'[CustomerKey]",
+        objectType: 'Column',
+        fixStatus: 'UNFIXED',
+        fixSummary: null,
+        hasAutoFix: true,
+        createdAt: new Date().toISOString(),
+      },
+      {
+        id: findingId4,
         ruleId: 'NO_SUMMARIZE_BY',
         ruleName: 'Set SummarizeBy to None for non-aggregatable columns',
         category: 'Performance',
@@ -86,29 +116,29 @@ export const mockResponses = {
         createdAt: new Date().toISOString(),
       },
       {
-        id: findingId3,
-        ruleId: 'HIDE_FOREIGN_KEYS',
-        ruleName: 'Hide foreign keys',
-        category: 'Maintenance',
-        severity: 1,
-        description: 'Foreign key columns should be hidden from the report view.',
-        affectedObject: "'Sales'[ProductKey]",
+        id: findingId5,
+        ruleId: 'NO_SUMMARIZE_BY',
+        ruleName: 'Set SummarizeBy to None for non-aggregatable columns',
+        category: 'Performance',
+        severity: 2,
+        description: 'Non-aggregatable columns should have SummarizeBy set to None.',
+        affectedObject: "'Product'[ProductKey]",
         objectType: 'Column',
-        fixStatus: 'FIXED',
-        fixSummary: 'Set IsHidden to true on Sales[ProductKey]',
+        fixStatus: 'UNFIXED',
+        fixSummary: null,
         hasAutoFix: true,
         createdAt: new Date().toISOString(),
       },
     ],
     summary: {
-      totalCount: 3,
+      totalCount: 5,
       errorCount: 1,
-      warningCount: 1,
-      infoCount: 1,
+      warningCount: 2,
+      infoCount: 2,
       fixedCount: 1,
-      unfixedCount: 2,
+      unfixedCount: 4,
     },
-    total: 3,
+    total: 5,
   },
 
   // ── Run Comparison ──

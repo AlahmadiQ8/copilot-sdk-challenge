@@ -4,7 +4,7 @@ import * as api from '../services/api';
 import ConnectionPanel from '../components/ConnectionPanel';
 import SummaryBar from '../components/SummaryBar';
 import FindingsFilter from '../components/FindingsFilter';
-import FindingCard from '../components/FindingCard';
+import FindingsGroupedList from '../components/FindingsGroupedList';
 import SessionInspector from '../components/SessionInspector';
 
 interface AnalyzerPageProps {
@@ -247,34 +247,27 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             }}
           />
 
-          <div className="space-y-2" role="list" aria-label="Analysis findings">
-            {loadingFindings ? (
+          {loadingFindings ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
                   <div key={i} className="h-28 animate-pulse rounded-lg bg-slate-800/40" />
                 ))}
               </div>
             ) : findings.length > 0 ? (
-              findings.map((f) => (
-                <div key={f.id} role="listitem">
-                  <FindingCard
-                    finding={f}
-                    onFixTriggered={() => {
-                      // Refresh findings after a short delay to show status change
-                      setTimeout(() => {
-                        if (currentRun) fetchFindings(currentRun.id, { severity, category, fixStatus, sortBy, sortOrder });
-                      }, 2000);
-                    }}
-                    onInspectSession={(findingId) => setInspectingFindingId(findingId)}
-                  />
-                </div>
-              ))
+              <FindingsGroupedList
+                findings={findings}
+                onFixTriggered={(findingId) => {
+                  setTimeout(() => {
+                    if (currentRun) fetchFindings(currentRun.id, { severity, category, fixStatus, sortBy, sortOrder });
+                  }, 2000);
+                }}
+                onInspectSession={(findingId) => setInspectingFindingId(findingId)}
+              />
             ) : (
               <p className="py-12 text-center text-sm text-slate-500">
                 No findings match the current filters.
               </p>
             )}
-          </div>
         </>
       )}
 
