@@ -9,8 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "test:e2e:live": "USE_MOCK_API=false playwright test"
+    "test:e2e": "playwright test --ui",
+    "test:e2e:live": "playwright test --config=playwright.live.config.ts"
   },
   "dependencies": {
     "@monaco-editor/react": "^4.7.0",
