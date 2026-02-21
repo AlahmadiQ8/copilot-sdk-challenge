@@ -170,11 +170,59 @@ const session = await client.createSession({
 
 ---
 
-## R6: Prisma ORM with SQLite
+## R6: Prisma ORM with better-sqlite3 Driver Adapter
 
-**Decision**: Use Prisma ORM with SQLite for persisting analysis runs, findings, and agent sessions.
+**Decision**: Use Prisma ORM v7 with the `better-sqlite3` driver adapter (`@prisma/adapter-better-sqlite3`) for persisting analysis runs, findings, and agent sessions.
 
-**Rationale**: SQLite is appropriate for a single-user local tool (no concurrent writes concern). Prisma provides type-safe queries, automatic migrations, and excellent TypeScript integration.
+**Rationale**: SQLite is appropriate for a single-user local tool (no concurrent writes concern). Prisma provides type-safe queries, automatic migrations, and excellent TypeScript integration. The `better-sqlite3` driver adapter replaces Prisma's built-in Rust-based SQLite engine with a native JavaScript driver, yielding faster synchronous queries, smaller install footprint (no Rust binary), and direct access to the underlying `better-sqlite3` instance if needed.
+
+**Versions**:
+- `prisma` / `@prisma/client`: **^7.4.1**
+- `@prisma/adapter-better-sqlite3`: **^7.4.1**
+- `better-sqlite3`: **^12.6.2**
+
+**Project configuration** (`prisma.config.ts` at repo root):
+```typescript
+import "dotenv/config";
+import { defineConfig, env } from "prisma/config";
+
+export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: {
+    path: "prisma/migrations",
+  },
+  datasource: {
+    url: env("DATABASE_URL"),
+  },
+});
+```
+
+**Schema** (`prisma/schema.prisma`):
+```prisma
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+```
+
+Note: In Prisma v7 the generator is `"prisma-client"` (ESM-first), replacing the legacy `"prisma-client-js"`. The datasource URL is provided via `prisma.config.ts`, not in the schema.
+
+**Client instantiation** (`src/models/prisma.ts`):
+```typescript
+import "dotenv/config";
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaClient } from "../generated/prisma/client";
+
+const connectionString = `${process.env.DATABASE_URL}`;
+const adapter = new PrismaBetterSqlite3({ url: connectionString });
+const prisma = new PrismaClient({ adapter });
+
+export { prisma };
+```
 
 **Schema approach**:
 - SQLite file stored at `backend/prisma/dev.db`
@@ -182,7 +230,7 @@ const session = await client.createSession({
 - DateTime fields use `@default(now())` and `@updatedAt`
 - Relations modeled with explicit foreign keys
 
-**Alternatives considered**: Raw SQLite with better-sqlite3 — rejected because Prisma provides migration management, type-safe queries, and reduces boilerplate per constitution Principle I.
+**Alternatives considered**: Prisma's built-in Rust-based SQLite driver — viable but adds a ~15 MB Rust query engine binary. The `better-sqlite3` adapter is lighter, synchronous, and aligns with the Rust-free Prisma architecture direction.
 
 ---
 

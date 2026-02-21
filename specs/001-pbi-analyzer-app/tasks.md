@@ -7,6 +7,8 @@
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
+**Revision Note**: Tasks T001–T066 were completed under Prisma v6 with the built-in Rust-based SQLite driver. Research R6 has been updated to use Prisma ORM v7 with the `better-sqlite3` driver adapter. Phase 10 contains migration tasks to align the existing implementation with the updated research.
+
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Can run in parallel (different files, no dependencies)
@@ -23,7 +25,7 @@
 
 ---
 
-## Phase 1: Setup (Shared Infrastructure)
+## Phase 1: Setup (Shared Infrastructure) ✅
 
 **Purpose**: Project initialization, dependency installation, and base configuration
 
@@ -38,11 +40,9 @@
 
 ---
 
-## Phase 2: Foundational (Blocking Prerequisites)
+## Phase 2: Foundational (Blocking Prerequisites) ✅
 
 **Purpose**: Core infrastructure that MUST be complete before ANY user story can be implemented
-
-**⚠️ CRITICAL**: No user story work can begin until this phase is complete
 
 - [X] T009 Create Express app entry point with CORS, JSON body parsing, and dev server startup on port 3001 in backend/src/index.ts
 - [X] T010 [P] Create Prisma client singleton module in backend/src/models/prisma.ts
@@ -54,17 +54,9 @@
 - [X] T016 Create API route registration module mounting all route groups under /api in backend/src/routes/index.ts
 - [X] T017 [P] Create BPA rules fetcher that loads rules from GitHub raw URL, parses JSON, and caches in-memory in backend/src/services/rules.service.ts
 
-**Checkpoint**: Foundation ready — user story implementation can now begin
-
 ---
 
-## Phase 3: User Story 1 — Connect & Analyze Semantic Model (Priority: P1) 🎯 MVP
-
-**Goal**: User connects to a Power BI Semantic Model, runs BPA analysis, and views categorized findings with severity, description, and affected objects
-
-**Independent Test**: Connect to a sample Semantic Model, run the analyzer, and verify that known best-practice violations appear in the results list with correct severity, description, and affected object
-
-### Backend Implementation for User Story 1
+## Phase 3: User Story 1 — Connect & Analyze Semantic Model (Priority: P1) 🎯 MVP ✅
 
 - [X] T018 [P] [US1] Create connection service wrapping MCP client for listInstances, connect, disconnect, getStatus in backend/src/services/connection.service.ts
 - [X] T019 [P] [US1] Create analysis service with BPA rule evaluation engine that fetches model metadata via MCP and evaluates rules per research.md R3 strategy in backend/src/services/analysis.service.ts
@@ -72,152 +64,119 @@
 - [X] T021 [P] [US1] Create analysis routes (POST /analysis/run, GET /analysis/runs, GET /analysis/runs/:runId) in backend/src/routes/analysis.routes.ts
 - [X] T022 [P] [US1] Create findings routes (GET /analysis/runs/:runId/findings with severity/category/fixStatus/sort filters and limit/offset pagination, GET /findings/:findingId) in backend/src/routes/findings.routes.ts
 - [X] T023 [P] [US1] Create rules route (GET /rules with optional category filter) in backend/src/routes/rules.routes.ts
-
-### Unit Tests for User Story 1
-
-- [X] T024 [P] [US1] Write Vitest unit tests for rules.service (fetch, parse, cache, filter by category) in backend/tests/unit/rules.service.test.ts
-- [X] T025 [P] [US1] Write Vitest unit tests for analysis.service (rule evaluation engine: property checks, regex-based rules, cross-reference rules) with mocked MCP client in backend/tests/unit/analysis.service.test.ts
-- [X] T026 [P] [US1] Write Vitest unit tests for connection.service (connect, disconnect, status, listInstances) with mocked MCP client in backend/tests/unit/connection.service.test.ts
-
-### Frontend Implementation for User Story 1
-
-- [X] T027 [P] [US1] Create API client service with connection and analysis methods (listInstances, connect, disconnect, getStatus, runAnalysis, getFindings, getRules) in frontend/src/services/api.ts
-- [X] T028 [US1] Create App component with React Router, two-tab layout (Analyzer, DAX Queries), and connection status header in frontend/src/App.tsx
-- [X] T029 [P] [US1] Create ConnectionPanel component with instance dropdown selector, connect/disconnect buttons, and status display in frontend/src/components/ConnectionPanel.tsx
-- [X] T030 [P] [US1] Create SummaryBar component displaying error, warning, and info counts with color-coded badges in frontend/src/components/SummaryBar.tsx
-- [X] T031 [P] [US1] Create FindingCard component showing severity badge, rule name, category, description, affected object, and fix status in frontend/src/components/FindingCard.tsx
-- [X] T032 [P] [US1] Create FindingsFilter component with severity, category, and fix status dropdowns plus sort controls in frontend/src/components/FindingsFilter.tsx
-- [X] T033 [US1] Create AnalyzerPage integrating ConnectionPanel, SummaryBar, FindingsFilter, and FindingCard list with run-analysis button in frontend/src/pages/AnalyzerPage.tsx
-
-**Checkpoint**: User Story 1 fully functional — user can connect, analyze, and browse findings
+- [X] T024 [P] [US1] Write Vitest unit tests for rules.service in backend/tests/unit/rules.service.test.ts
+- [X] T025 [P] [US1] Write Vitest unit tests for analysis.service in backend/tests/unit/analysis.service.test.ts
+- [X] T026 [P] [US1] Write Vitest unit tests for connection.service in backend/tests/unit/connection.service.test.ts
+- [X] T027 [P] [US1] Create API client service in frontend/src/services/api.ts
+- [X] T028 [US1] Create App component with React Router, two-tab layout in frontend/src/App.tsx
+- [X] T029 [P] [US1] Create ConnectionPanel component in frontend/src/components/ConnectionPanel.tsx
+- [X] T030 [P] [US1] Create SummaryBar component in frontend/src/components/SummaryBar.tsx
+- [X] T031 [P] [US1] Create FindingCard component in frontend/src/components/FindingCard.tsx
+- [X] T032 [P] [US1] Create FindingsFilter component in frontend/src/components/FindingsFilter.tsx
+- [X] T033 [US1] Create AnalyzerPage in frontend/src/pages/AnalyzerPage.tsx
 
 ---
 
-## Phase 4: User Story 2 — AI Auto-Fix Individual Findings (Priority: P2)
+## Phase 4: User Story 2 — AI Auto-Fix Individual Findings (Priority: P2) ✅
 
-**Goal**: User triggers an AI-powered fix for a specific finding; the system applies the fix via Copilot SDK + MCP and reports success/failure with a change summary
-
-**Independent Test**: Select a known fixable finding, trigger AI fix, and verify the finding status updates to Fixed with a summary of changes applied
-
-### Backend Implementation for User Story 2
-
-- [X] T034 [P] [US2] Create AI fix service integrating Copilot SDK with Power BI Modeling MCP server for intelligent fixes and direct MCP calls for deterministic FixExpression rules in backend/src/services/fix.service.ts
-- [X] T035 [P] [US2] Create fix routes (POST /findings/:findingId/fix, GET /findings/:findingId/fix/stream SSE) in backend/src/routes/fix.routes.ts
-- [X] T036 [US2] Implement SSE streaming endpoint that emits fix session step events in real-time as the Copilot agent works in backend/src/routes/fix.routes.ts
-
-### Unit Tests for User Story 2
-
-- [X] T037 [P] [US2] Write Vitest unit tests for fix.service (deterministic fix path, AI fix path, session creation, step recording, status transitions) with mocked Copilot SDK and MCP client in backend/tests/unit/fix.service.test.ts
-
-### Frontend Implementation for User Story 2
-
-- [X] T038 [P] [US2] Add "AI Fix" button to FindingCard component with loading state and status badge updates in frontend/src/components/FindingCard.tsx
-- [X] T039 [US2] Create FixProgressPanel component that subscribes to SSE stream and displays real-time fix steps in frontend/src/components/FixProgressPanel.tsx
-- [X] T040 [US2] Add fix-related API methods (triggerFix, streamFixProgress via EventSource) to frontend API service in frontend/src/services/api.ts
-
-**Checkpoint**: User Story 2 fully functional — user can trigger AI fix and see real-time progress
+- [X] T034 [P] [US2] Create AI fix service in backend/src/services/fix.service.ts
+- [X] T035 [P] [US2] Create fix routes in backend/src/routes/fix.routes.ts
+- [X] T036 [US2] Implement SSE streaming endpoint in backend/src/routes/fix.routes.ts
+- [X] T037 [P] [US2] Write Vitest unit tests for fix.service in backend/tests/unit/fix.service.test.ts
+- [X] T038 [P] [US2] Add "AI Fix" button to FindingCard in frontend/src/components/FindingCard.tsx
+- [X] T039 [US2] Create FixProgressPanel component in frontend/src/components/FixProgressPanel.tsx
+- [X] T040 [US2] Add fix-related API methods to frontend/src/services/api.ts
 
 ---
 
-## Phase 5: User Story 3 — Rerun Analyzer After Fixes (Priority: P3)
+## Phase 5: User Story 3 — Rerun Analyzer After Fixes (Priority: P3) ✅
 
-**Goal**: User reruns analysis after applying fixes and sees which findings are resolved and which remain
-
-**Independent Test**: Apply a fix to a finding, rerun the analyzer, and verify the previously flagged finding no longer appears (or shows as resolved)
-
-### Backend Implementation for User Story 3
-
-- [X] T041 [US3] Add rerun analysis logic to analysis service that creates a new AnalysisRun and supports comparison with the previous run to identify resolved findings in backend/src/services/analysis.service.ts
-
-### Frontend Implementation for User Story 3
-
-- [X] T042 [US3] Add "Rerun Analysis" button to AnalyzerPage and update findings list to show resolved vs remaining findings after rerun in frontend/src/pages/AnalyzerPage.tsx
-
-**Checkpoint**: User Story 3 fully functional — user can rerun analysis and verify fixes
+- [X] T041 [US3] Add rerun analysis logic in backend/src/services/analysis.service.ts
+- [X] T042 [US3] Add "Rerun Analysis" button to frontend/src/pages/AnalyzerPage.tsx
 
 ---
 
-## Phase 6: User Story 4 — Inspect AI Agent Session (Priority: P4)
+## Phase 6: User Story 4 — Inspect AI Agent Session (Priority: P4) ✅
 
-**Goal**: User inspects the step-by-step AI reasoning, tool calls, and outcomes for any finding that had a fix attempted
-
-**Independent Test**: Trigger an AI fix, open the session inspector, and verify the session log shows reasoning steps, actions, and model changes with timestamps
-
-### Backend Implementation for User Story 4
-
-- [X] T043 [US4] Create fix session route returning full session with steps ordered by stepNumber (GET /findings/:findingId/fix/session) in backend/src/routes/fix.routes.ts
-
-### Frontend Implementation for User Story 4
-
-- [X] T044 [P] [US4] Create SessionInspector component rendering chronological steps (reasoning, tool_call, tool_result, message, error) with timestamps and total duration in frontend/src/components/SessionInspector.tsx
-- [X] T045 [US4] Add "Inspect Session" button to FindingCard and integrate SessionInspector as a slide-over panel or modal in frontend/src/pages/AnalyzerPage.tsx
-
-**Checkpoint**: User Story 4 fully functional — user can inspect any AI fix session in detail
+- [X] T043 [US4] Create fix session route in backend/src/routes/fix.routes.ts
+- [X] T044 [P] [US4] Create SessionInspector component in frontend/src/components/SessionInspector.tsx
+- [X] T045 [US4] Add "Inspect Session" button and panel to frontend/src/pages/AnalyzerPage.tsx
 
 ---
 
-## Phase 7: User Story 5 — Generate & Test DAX Queries (Priority: P5)
+## Phase 7: User Story 5 — Generate & Test DAX Queries (Priority: P5) ✅
 
-**Goal**: User writes or AI-generates DAX queries, executes them against the connected model, and views tabular results with execution metadata
-
-**Independent Test**: Navigate to DAX tab, enter `EVALUATE 'Sales'`, execute, and verify results display in a tabular format with row count and execution time
-
-### Backend Implementation for User Story 5
-
-- [X] T046 [P] [US5] Create DAX execution service wrapping MCP dax_query_operations (Execute, Validate) with cancellation support in backend/src/services/dax.service.ts
-- [X] T047 [P] [US5] Create DAX generation service using Copilot SDK with Power BI MCP server for natural language to DAX conversion in backend/src/services/dax-generation.service.ts
-- [X] T048 [US5] Create DAX routes (POST /dax/execute, POST /dax/generate, GET /dax/history with limit+offset, POST /dax/:queryId/cancel) in backend/src/routes/dax.routes.ts
-
-### Unit Tests for User Story 5
-
-- [X] T049 [P] [US5] Write Vitest unit tests for dax.service (execute, validate, cancel, error handling) with mocked MCP client in backend/tests/unit/dax.service.test.ts
-
-### Frontend Implementation for User Story 5
-
-- [X] T050 [P] [US5] Create DaxEditor component integrating Monaco Editor with DAX language configuration in frontend/src/components/DaxEditor.tsx
-- [X] T051 [P] [US5] Create QueryResultsTable component with scrolling, column resizing, column headers, row count, and execution time in frontend/src/components/QueryResultsTable.tsx
-- [X] T052 [P] [US5] Create NaturalLanguageInput component with text input and "Generate DAX" button in frontend/src/components/NaturalLanguageInput.tsx
-- [X] T053 [US5] Create DaxQueryPage integrating DaxEditor, NaturalLanguageInput, QueryResultsTable, AI explanation display panel, cancel button, and query history sidebar in frontend/src/pages/DaxQueryPage.tsx
-- [X] T054 [US5] Add DAX API methods (executeDax, generateDax, getDaxHistory, cancelDaxQuery) to frontend API service in frontend/src/services/api.ts
-
-**Checkpoint**: User Story 5 fully functional — user can write, generate, cancel, and execute DAX queries
+- [X] T046 [P] [US5] Create DAX execution service in backend/src/services/dax.service.ts
+- [X] T047 [P] [US5] Create DAX generation service in backend/src/services/dax-generation.service.ts
+- [X] T048 [US5] Create DAX routes in backend/src/routes/dax.routes.ts
+- [X] T049 [P] [US5] Write Vitest unit tests for dax.service in backend/tests/unit/dax.service.test.ts
+- [X] T050 [P] [US5] Create DaxEditor component in frontend/src/components/DaxEditor.tsx
+- [X] T051 [P] [US5] Create QueryResultsTable component in frontend/src/components/QueryResultsTable.tsx
+- [X] T052 [P] [US5] Create NaturalLanguageInput component in frontend/src/components/NaturalLanguageInput.tsx
+- [X] T053 [US5] Create DaxQueryPage in frontend/src/pages/DaxQueryPage.tsx
+- [X] T054 [US5] Add DAX API methods to frontend/src/services/api.ts
 
 ---
 
-## Phase 8: User Story 6 — User-Friendly Navigation & Layout (Priority: P6)
+## Phase 8: User Story 6 — User-Friendly Navigation & Layout (Priority: P6) ✅
 
-**Goal**: The app provides polished UX with responsive layout, visual feedback, keyboard accessibility, WCAG 2.1 AA compliance, and error handling across all features
-
-**Independent Test**: Navigate through all tabs and features, verify responsive behavior at 1024px–2560px, confirm keyboard navigation works, and check all actions provide visual feedback
-
-### Frontend Implementation for User Story 6
-
-- [X] T055 [P] [US6] Create Toast notification component for success/error/info messages in frontend/src/components/Toast.tsx
-- [X] T056 [P] [US6] Create LoadingSpinner and ProgressBar reusable components in frontend/src/components/LoadingIndicators.tsx
-- [X] T057 [P] [US6] Create ErrorBoundary component with fallback UI for unhandled errors in frontend/src/components/ErrorBoundary.tsx
-- [X] T058 [US6] Add responsive Tailwind breakpoints and layout adjustments for 1024px–2560px viewports across all pages in frontend/src/pages/
-- [X] T059 [US6] Add WCAG 2.1 AA accessibility: keyboard navigation, visible focus indicators, ARIA landmarks/labels, color contrast ratios (4.5:1), skip-navigation link across all components in frontend/src/components/
-- [X] T060 [US6] Add connection-lost detection banner with reconnect button and session preservation (findings and query history persist in DB) in frontend/src/components/ConnectionStatusBanner.tsx and backend/src/mcp/client.ts
-
-**Checkpoint**: All user stories polished with consistent UX, accessibility, and error handling
+- [X] T055 [P] [US6] Create Toast notification component in frontend/src/components/Toast.tsx
+- [X] T056 [P] [US6] Create LoadingSpinner and ProgressBar in frontend/src/components/LoadingIndicators.tsx
+- [X] T057 [P] [US6] Create ErrorBoundary component in frontend/src/components/ErrorBoundary.tsx
+- [X] T058 [US6] Add responsive Tailwind breakpoints across frontend/src/pages/
+- [X] T059 [US6] Add WCAG 2.1 AA accessibility across frontend/src/components/
+- [X] T060 [US6] Add connection-lost detection banner in frontend/src/components/ConnectionStatusBanner.tsx
 
 ---
 
-## Phase 9: Polish & Cross-Cutting Concerns
+## Phase 9: Polish & Cross-Cutting Concerns ✅
 
-**Purpose**: E2E tests, final validation, and documentation
+- [X] T061 [P] Create Playwright E2E test fixtures in frontend/tests/e2e/fixtures.ts
+- [X] T062 [P] Create mock API response data in frontend/tests/e2e/mocks/responses.ts
+- [X] T063 Create Playwright E2E test for analyzer flow in frontend/tests/e2e/analyzer.spec.ts
+- [X] T064 [P] Create Playwright E2E test for AI fix flow in frontend/tests/e2e/fix.spec.ts
+- [X] T065 [P] Create Playwright E2E test for DAX query flow in frontend/tests/e2e/dax-query.spec.ts
+- [X] T066 Run quickstart.md validation
 
-### Playwright E2E Tests
+---
 
-- [X] T061 [P] Create Playwright E2E test fixtures with configurable mock API (USE_MOCK_API env var) and page.route() interception in frontend/tests/e2e/fixtures.ts
-- [X] T062 [P] Create mock API response data for all endpoints (connection, analysis, findings, fix, DAX) in frontend/tests/e2e/mocks/responses.ts
-- [X] T063 Create Playwright E2E test for connect-and-analyze flow (US1) in frontend/tests/e2e/analyzer.spec.ts
-- [X] T064 [P] Create Playwright E2E test for AI fix flow (US2) in frontend/tests/e2e/fix.spec.ts
-- [X] T065 [P] Create Playwright E2E test for DAX query flow (US5) in frontend/tests/e2e/dax-query.spec.ts
+## Phase 10: Migrate to Prisma v7 with better-sqlite3 Driver Adapter ✅
 
-### Validation
+**Purpose**: Align the existing implementation with updated research R6 — migrate from Prisma v6 (built-in Rust SQLite engine) to Prisma v7 with `better-sqlite3` driver adapter per research.md R6.
 
-- [X] T066 Run quickstart.md validation — verify all setup steps, dev scripts, and environment variables work end-to-end
+**⚠️ CRITICAL**: These tasks must be completed sequentially. The migration changes the Prisma client import path, generator config, and runtime adapter. All backend code that imports Prisma will need updating.
+
+**Context**: Research R6 was revised to use Prisma ORM v7 (`^7.4.1`) with `@prisma/adapter-better-sqlite3` (`^7.4.1`) and `better-sqlite3` (`^12.6.2`). This replaces the built-in Rust-based SQLite engine with a native JavaScript driver, yielding a smaller install footprint (no Rust binary) and aligning with the Rust-free Prisma architecture direction.
+
+### Dependencies & Package Updates
+
+- [X] T067 Update backend/package.json: upgrade `prisma` and `@prisma/client` from `^6.5.0` to `^7.4.1`, add `@prisma/adapter-better-sqlite3` (`^7.4.1`) and `better-sqlite3` (`^12.6.2`) and `dotenv` (`^16.4.7`) to dependencies, add `@types/better-sqlite3` (`^7.6.13`) to devDependencies, then run `npm install` in backend/
+
+### Prisma Schema & Config Migration
+
+- [X] T068 Update backend/prisma/schema.prisma: change generator provider from `"prisma-client-js"` to `"prisma-client"`, add `output = "../generated/prisma"`, remove `url = env("DATABASE_URL")` from datasource block (URL now comes from prisma.config.ts)
+- [X] T069 [P] Create backend/prisma.config.ts with `defineConfig()` from `"prisma/config"` providing schema path, migrations path, and datasource URL via `env("DATABASE_URL")` per research.md R6
+- [X] T070 Delete existing backend/prisma/migrations/ directory and backend/prisma/prisma/dev.db (if present), then run `npx prisma migrate dev --name init` to recreate migration with new generator, and run `npx prisma generate` to produce the generated client at backend/generated/prisma/
+
+### Client Instantiation Update
+
+- [X] T071 Rewrite backend/src/models/prisma.ts to use `PrismaBetterSqlite3` adapter from `@prisma/adapter-better-sqlite3` and import `PrismaClient` from `../generated/prisma/client` instead of `@prisma/client`, passing the adapter instance to the `PrismaClient` constructor per research.md R6
+
+### Verify & Fix Imports
+
+- [X] T072 [P] Verify all backend service files that import from `backend/src/models/prisma.ts` (analysis.service.ts, dax.service.ts, dax-generation.service.ts, fix.service.ts) still work with the updated module — the default export remains `prisma` so import paths should be unchanged, but verify no code references `@prisma/client` types directly
+- [X] T073 [P] Verify all backend unit tests (backend/tests/unit/*.test.ts) still pass — run `npm run test` in backend/ and fix any import or type errors caused by the Prisma v7 migration
+
+### Update Design Documents
+
+- [X] T074 [P] Update backend data-model.md Prisma schema block: change generator provider from `"prisma-client-js"` to `"prisma-client"`, add `output = "../generated/prisma"`, remove `url` from datasource block in specs/001-pbi-analyzer-app/data-model.md
+- [X] T075 [P] Update quickstart.md to document new `prisma.config.ts` file, mention `better-sqlite3` in the technology stack table, and add `npx prisma generate` step after migration in specs/001-pbi-analyzer-app/quickstart.md
+
+### Smoke Test
+
+- [X] T076 Run `npm run dev` in backend/ to verify the Express server starts and Prisma connects to SQLite via the better-sqlite3 adapter without errors
+
+**Checkpoint**: Backend fully migrated to Prisma v7 + better-sqlite3. All existing functionality preserved.
 
 ---
 
@@ -225,117 +184,82 @@
 
 ### Phase Dependencies
 
-- **Setup (Phase 1)**: No dependencies — can start immediately
-- **Foundational (Phase 2)**: Depends on Setup (Phase 1) completion — **BLOCKS all user stories**
-- **US1 (Phase 3)**: Depends on Foundational (Phase 2) — no other story dependencies
-- **US2 (Phase 4)**: Depends on Foundational (Phase 2) — integrates with US1 FindingCard but independently testable
-- **US3 (Phase 5)**: Depends on US1 (Phase 3) — needs existing analysis run to compare against
-- **US4 (Phase 6)**: Depends on US2 (Phase 4) — needs fix sessions to exist for inspection
-- **US5 (Phase 7)**: Depends on Foundational (Phase 2) — fully independent of analyzer stories
-- **US6 (Phase 8)**: Depends on US1 (Phase 3) — polishes existing UI components
-- **Polish (Phase 9)**: Depends on US1, US2, US5 at minimum for meaningful E2E tests
+- **Setup (Phase 1)**: No dependencies — completed ✅
+- **Foundational (Phase 2)**: Depends on Setup — completed ✅
+- **US1 (Phase 3)**: Depends on Foundational — completed ✅
+- **US2 (Phase 4)**: Depends on Foundational — completed ✅
+- **US3 (Phase 5)**: Depends on US1 — completed ✅
+- **US4 (Phase 6)**: Depends on US2 — completed ✅
+- **US5 (Phase 7)**: Depends on Foundational — completed ✅
+- **US6 (Phase 8)**: Depends on US1 — completed ✅
+- **Polish (Phase 9)**: Depends on US1, US2, US5 — completed ✅
+- **Prisma v7 Migration (Phase 10)**: Depends on all prior phases — updates foundational infrastructure
 
-### User Story Dependencies
+### Phase 10 Internal Order
 
 ```
-Phase 1: Setup
+T067 (package.json update + npm install)
+  ↓
+T068 (schema.prisma update) ──┐
+T069 (prisma.config.ts create) ─┤── can be parallel
+                                 ↓
+T070 (delete old migrations + re-migrate + generate)
+  ↓
+T071 (rewrite prisma.ts client)
+  ↓
+T072 (verify service imports) ──┐
+T073 (verify unit tests)  ──────┤── can be parallel
+T074 (update data-model.md) ────┤
+T075 (update quickstart.md) ────┘
+  ↓
+T076 (smoke test)
+```
+
+### User Story Dependencies (unchanged)
+
+```
+Phase 1: Setup ✅
     ↓
-Phase 2: Foundational (BLOCKS ALL)
+Phase 2: Foundational ✅
     ↓
-    ├── US1 (P1) ──→ US3 (P3) ──→ US6 (P6)
+    ├── US1 (P1) ✅ ──→ US3 (P3) ✅ ──→ US6 (P6) ✅
     │       ↓
-    │      US2 (P2) ──→ US4 (P4)
+    │      US2 (P2) ✅ ──→ US4 (P4) ✅
     │
-    └── US5 (P5) [fully independent]
+    └── US5 (P5) ✅ [fully independent]
     
-    All ──→ Phase 9: Polish
-```
-
-### Within Each User Story
-
-- Backend routes depend on their respective services
-- Unit tests for services can run in parallel with frontend work
-- Frontend components can be built in parallel with backend
-- Page-level components depend on their child components
-- API client methods should exist before pages integrate them
-
-### Parallel Opportunities
-
-- **Phase 1**: T003, T004, T005, T006, T007, T008 all run in parallel after T001+T002
-- **Phase 2**: T010, T011, T012, T013, T014, T015, T017 all run in parallel after T009
-- **Phase 3**: All backend routes (T020–T023) parallel; all unit tests (T024–T026) parallel; all frontend components (T029–T032) parallel; backend and frontend can be developed in parallel
-- **Phase 4**: T034 and T035 parallel; T037 parallel with frontend; T038 parallel with backend work
-- **Phase 7**: T046 and T047 parallel; T049 parallel with frontend; T050, T051, T052 parallel
-- **US1 and US5**: Fully independent — can be developed in parallel by different developers
-
----
-
-## Parallel Example: User Story 1
-
-```bash
-# Backend — all route files can be created in parallel:
-Task T020: "Create connection routes in backend/src/routes/connection.routes.ts"
-Task T021: "Create analysis routes in backend/src/routes/analysis.routes.ts"
-Task T022: "Create findings routes in backend/src/routes/findings.routes.ts"
-Task T023: "Create rules route in backend/src/routes/rules.routes.ts"
-
-# Unit tests — all test files in parallel (different files, mocked deps):
-Task T024: "Unit tests for rules.service in backend/tests/unit/rules.service.test.ts"
-Task T025: "Unit tests for analysis.service in backend/tests/unit/analysis.service.test.ts"
-Task T026: "Unit tests for connection.service in backend/tests/unit/connection.service.test.ts"
-
-# Frontend — all leaf components can be created in parallel:
-Task T029: "Create ConnectionPanel in frontend/src/components/ConnectionPanel.tsx"
-Task T030: "Create SummaryBar in frontend/src/components/SummaryBar.tsx"
-Task T031: "Create FindingCard in frontend/src/components/FindingCard.tsx"
-Task T032: "Create FindingsFilter in frontend/src/components/FindingsFilter.tsx"
-
-# Then the page (depends on components above):
-Task T033: "Create AnalyzerPage in frontend/src/pages/AnalyzerPage.tsx"
-```
-
-## Parallel Example: US1 + US5 Simultaneous
-
-```bash
-# Developer A: User Story 1 (Analyzer)
-Phase 3 tasks (T018–T033)
-
-# Developer B: User Story 5 (DAX Queries) — fully independent
-Phase 7 tasks (T046–T054)
+    All ──→ Phase 9: Polish ✅
+              ↓
+         Phase 10: Prisma v7 Migration
 ```
 
 ---
 
 ## Implementation Strategy
 
-### MVP First (User Story 1 Only)
+### Prisma v7 Migration (Phase 10)
 
-1. Complete Phase 1: Setup
-2. Complete Phase 2: Foundational (CRITICAL — blocks all stories)
-3. Complete Phase 3: User Story 1
-4. **STOP and VALIDATE**: Connect to PBI Desktop, run analysis, verify findings display, run unit tests
-5. Deploy/demo if ready — this alone delivers value
+1. **T067**: Update `package.json` and install new deps — this is the prerequisite for everything
+2. **T068 + T069**: Update schema and create config file (parallel — different files)
+3. **T070**: Re-run migration with new generator to produce `generated/prisma/` output
+4. **T071**: Rewrite the Prisma client singleton to use the adapter
+5. **T072–T075**: Verify imports, tests, and update docs (all parallel — different files)
+6. **T076**: Final smoke test — start the server and confirm everything works
 
-### Incremental Delivery
+**Risk**: The Prisma v7 migration changes the client import path from `@prisma/client` to `../generated/prisma/client`. All files importing Prisma types directly from `@prisma/client` will need updating. The `prisma.ts` module re-exports the client so most services import from there, but verify no service or test imports types directly from the old path.
 
-1. Setup + Foundational → Foundation ready
-2. **Add US1** → Connect & Analyze works → **Demo MVP!**
-3. **Add US2** → AI Fix works → Demo
-4. **Add US3** → Rerun verification works → Demo
-5. **Add US4** → Session inspection works → Demo
-6. **Add US5** → DAX query tab works → Demo (can be started in parallel with US2–US4)
-7. **Add US6** → Polish UX → Demo
-8. **Add E2E Tests** → Quality gate → Release
+---
 
-### Parallel Team Strategy
+## Summary
 
-With two developers:
-
-1. Team completes Setup + Foundational together
-2. Once Foundational is done:
-   - **Developer A**: US1 → US2 → US3 → US4 (analyzer flow)
-   - **Developer B**: US5 → US6 → E2E Tests (DAX + polish)
-3. Stories complete and integrate independently
+| Metric | Value |
+|--------|-------|
+| **Total tasks** | 76 |
+| **Completed (Phase 1–9)** | 66 |
+| **New migration tasks (Phase 10)** | 10 (T067–T076) |
+| **Parallel opportunities in Phase 10** | T068+T069 parallel; T072+T073+T074+T075 parallel |
+| **Files modified** | ~8 (package.json, schema.prisma, prisma.config.ts, prisma.ts, data-model.md, quickstart.md + verification) |
+| **Files created** | 1 (backend/prisma.config.ts) |
 
 ---
 
@@ -343,11 +267,7 @@ With two developers:
 
 - [P] tasks = different files, no dependencies on incomplete tasks in same phase
 - [Story] label maps task to specific user story for traceability
-- Each user story should be independently completable and testable
-- Commit after each task or logical group
-- Stop at any checkpoint to validate story independently
-- BPA rule evaluation engine (T019) is the most complex single task — see research.md R3 for strategy
-- Copilot SDK integration (T034, T047) requires GitHub Copilot authentication — see research.md R4, R5
-- MCP client manager (T011) follows singleton pattern with health check per research.md R8
-- Structured logging (T012) uses correlation IDs from AnalysisRun.id and FixSession.id per constitution Principle V
-- Unit tests use mocked Prisma client and MCP client per constitution Principle IV — no network/DB in tests
+- Phase 10 is a cross-cutting infrastructure migration — no user story label
+- The migration preserves all existing functionality; no user-facing changes
+- After Phase 10, the `backend/generated/prisma/` directory will contain the generated Prisma client (should be gitignored)
+- The `@prisma/client` package is still needed as a dependency but the runtime import path changes to `../generated/prisma/client`

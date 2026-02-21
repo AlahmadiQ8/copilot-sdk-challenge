@@ -36,6 +36,7 @@ blob-report/
 # Prisma
 backend/prisma/dev.db
 backend/prisma/dev.db-journal
+backend/generated/
 
 # Vite
 frontend/.vite/

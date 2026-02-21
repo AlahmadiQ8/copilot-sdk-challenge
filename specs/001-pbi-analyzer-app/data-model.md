@@ -7,11 +7,11 @@
 ```prisma
 datasource db {
   provider = "sqlite"
-  url      = env("DATABASE_URL")
 }
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../generated/prisma"
 }
 
 model AnalysisRun {

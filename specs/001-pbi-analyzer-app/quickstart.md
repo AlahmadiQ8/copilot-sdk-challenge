@@ -20,6 +20,7 @@ cd backend
 npm install
 cp .env.example .env   # Contains DATABASE_URL="file:./prisma/dev.db"
 npx prisma migrate dev --name init
+npx prisma generate     # Generate Prisma client with better-sqlite3 adapter
 npm run dev             # Starts Express server on http://localhost:3001
 ```
 
@@ -74,6 +75,8 @@ backend/
 │   └── index.ts         # Entry point
 ├── prisma/
 │   └── schema.prisma    # Database schema
+├── prisma.config.ts     # Prisma v7 config (datasource URL, paths)
+├── generated/prisma/    # Generated Prisma client (gitignored)
 └── tests/
 
 frontend/
@@ -127,8 +130,8 @@ USE_MOCK_API=true   # Set to false for live API tests
 | Styling | Tailwind CSS | Utility-first CSS |
 | DAX Editor | Monaco Editor | Code editor with syntax highlighting |
 | Backend | Express.js + TypeScript | API server |
-| ORM | Prisma | Database access |
-| Database | SQLite | Local persistence |
+| ORM | Prisma v7 + better-sqlite3 | Database access via driver adapter |
+| Database | SQLite (better-sqlite3) | Local persistence |
 | AI Agent | GitHub Copilot SDK | AI-powered fixes and DAX generation |
 | Model Access | Power BI Modeling MCP | Connect to PBI Desktop |
 | MCP Client | @modelcontextprotocol/sdk | TypeScript MCP client |
