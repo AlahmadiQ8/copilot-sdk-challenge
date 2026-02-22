@@ -7,6 +7,7 @@ interface FindingsGroupedListProps {
   onBulkFixTriggered: (ruleId: string) => void;
   onInspectBulkSession: (ruleId: string) => void;
   bulkFixingRuleId: string | null;
+  defaultCollapsed?: boolean;
 }
 
 interface RuleGroup {
@@ -29,6 +30,7 @@ export default function FindingsGroupedList({
   onBulkFixTriggered,
   onInspectBulkSession,
   bulkFixingRuleId,
+  defaultCollapsed = false,
 }: FindingsGroupedListProps) {
   const groups = useMemo(() => {
     const map = new Map<string, RuleGroup>();
@@ -53,7 +55,10 @@ export default function FindingsGroupedList({
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
   const toggle = (ruleId: string) => {
-    setCollapsed((prev) => ({ ...prev, [ruleId]: !prev[ruleId] }));
+    setCollapsed((prev) => {
+      const currentlyCollapsed = prev[ruleId] ?? defaultCollapsed;
+      return { ...prev, [ruleId]: !currentlyCollapsed };
+    });
   };
 
   const collapseAll = () => {
@@ -62,9 +67,13 @@ export default function FindingsGroupedList({
     setCollapsed(all);
   };
 
-  const expandAll = () => setCollapsed({});
+  const expandAll = () => {
+    const all: Record<string, boolean> = {};
+    for (const g of groups) all[g.ruleId] = false;
+    setCollapsed(all);
+  };
 
-  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed[g.ruleId]);
+  const allCollapsed = groups.length > 0 && groups.every((g) => collapsed[g.ruleId] ?? defaultCollapsed);
 
   return (
     <div className="space-y-3" role="list" aria-label="Analysis findings grouped by rule">
@@ -82,7 +91,7 @@ export default function FindingsGroupedList({
       )}
 
       {groups.map((group) => {
-        const isCollapsed = !!collapsed[group.ruleId];
+        const isCollapsed = collapsed[group.ruleId] ?? defaultCollapsed;
         const sev = severityConfig[group.severity] || severityConfig[1];
         const unfixedCount = group.findings.filter((f) => f.fixStatus === 'UNFIXED').length;
         const fixedCount = group.findings.filter((f) => f.fixStatus === 'FIXED').length;

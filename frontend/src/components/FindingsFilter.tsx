@@ -1,26 +1,15 @@
-import type { FindingCategory, FixStatus } from '../types/api';
+import type { FixStatus } from '../types/api';
 
 interface FindingsFilterProps {
   severity: string;
-  category: string;
   fixStatus: string;
   sortBy: string;
   sortOrder: 'asc' | 'desc';
   onSeverityChange: (val: string) => void;
-  onCategoryChange: (val: string) => void;
   onFixStatusChange: (val: string) => void;
   onSortByChange: (val: string) => void;
   onSortOrderChange: (val: 'asc' | 'desc') => void;
 }
-
-const categories: FindingCategory[] = [
-  'Performance',
-  'DAX Expressions',
-  'Error Prevention',
-  'Maintenance',
-  'Naming Conventions',
-  'Formatting',
-];
 
 const fixStatuses: { value: FixStatus; label: string }[] = [
   { value: 'UNFIXED', label: 'Unfixed' },
@@ -38,12 +27,10 @@ const sortOptions = [
 
 export default function FindingsFilter({
   severity,
-  category,
   fixStatus,
   sortBy,
   sortOrder,
   onSeverityChange,
-  onCategoryChange,
   onFixStatusChange,
   onSortByChange,
   onSortOrderChange,
@@ -52,11 +39,7 @@ export default function FindingsFilter({
     'rounded-lg border border-slate-600 bg-slate-700/80 px-3 py-1.5 text-xs text-slate-200 transition focus:border-sky-500 focus:outline-none focus:ring-1 focus:ring-sky-500';
 
   return (
-    <div
-      className="flex flex-wrap items-center gap-3"
-      role="group"
-      aria-label="Filter findings"
-    >
+    <>
       <select
         value={severity}
         onChange={(e) => onSeverityChange(e.target.value)}
@@ -64,23 +47,9 @@ export default function FindingsFilter({
         aria-label="Filter by severity"
       >
         <option value="">All Severities</option>
-        <option value="3">Error (3)</option>
-        <option value="2">Warning (2)</option>
-        <option value="1">Info (1)</option>
-      </select>
-
-      <select
-        value={category}
-        onChange={(e) => onCategoryChange(e.target.value)}
-        className={selectClass}
-        aria-label="Filter by category"
-      >
-        <option value="">All Categories</option>
-        {categories.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
-        ))}
+        <option value="3">Error</option>
+        <option value="2">Warning</option>
+        <option value="1">Info</option>
       </select>
 
       <select
@@ -97,7 +66,7 @@ export default function FindingsFilter({
         ))}
       </select>
 
-      <div className="mx-1 h-5 w-px bg-slate-600/50" aria-hidden="true" />
+      <div className="mx-0.5 h-4 w-px bg-slate-600/40" aria-hidden="true" />
 
       <select
         value={sortBy}
@@ -120,6 +89,6 @@ export default function FindingsFilter({
       >
         {sortOrder === 'asc' ? '↑' : '↓'}
       </button>
-    </div>
+    </>
   );
 }

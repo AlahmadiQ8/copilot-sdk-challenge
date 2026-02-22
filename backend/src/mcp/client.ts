@@ -7,6 +7,7 @@ interface McpConnection {
   transport: StdioClientTransport;
   serverAddress: string;
   databaseName: string;
+  catalogName: string;
   connectedAt: Date;
 }
 
@@ -36,6 +37,7 @@ export async function spawnMcpClient(): Promise<Client> {
     transport,
     serverAddress: '',
     databaseName: '',
+    catalogName: '',
     connectedAt: new Date(),
   };
 
@@ -90,9 +92,32 @@ export async function connectToModel(
 
   logger.info({ serverAddress, databaseName, result }, 'Connected to model');
 
+  // Resolve the actual SSAS catalog name (GUID) — PBI Desktop uses GUIDs
+  // internally, not the friendly model name.
+  let catalogName = databaseName;
+  try {
+    const dbResult = await client.callTool({
+      name: 'database_operations',
+      arguments: { request: { operation: 'List' } },
+    });
+    const dbContent = (dbResult as { content?: Array<{ text?: string }> })?.content;
+    const dbText = dbContent?.[0]?.text;
+    if (dbText) {
+      const dbParsed = JSON.parse(dbText);
+      const databases: Array<{ name?: string }> = Array.isArray(dbParsed?.data) ? dbParsed.data : [];
+      if (databases.length === 1 && databases[0].name) {
+        catalogName = databases[0].name;
+        logger.info({ catalogName }, 'Resolved SSAS catalog name');
+      }
+    }
+  } catch (dbErr) {
+    logger.warn({ err: dbErr }, 'Could not resolve SSAS catalog name, falling back to databaseName');
+  }
+
   if (connection) {
     connection.serverAddress = serverAddress;
     connection.databaseName = databaseName;
+    connection.catalogName = catalogName;
     connection.connectedAt = new Date();
   }
 }
@@ -138,6 +163,7 @@ export function getConnectionStatus(): {
   connected: boolean;
   serverAddress?: string;
   databaseName?: string;
+  catalogName?: string;
   connectedAt?: Date;
 } {
   if (!connection || !connection.serverAddress) {
@@ -147,6 +173,7 @@ export function getConnectionStatus(): {
     connected: true,
     serverAddress: connection.serverAddress,
     databaseName: connection.databaseName,
+    catalogName: connection.catalogName,
     connectedAt: connection.connectedAt,
   };
 }
