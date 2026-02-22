@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { BulkFixSessionDetail, FixSessionStep } from '../types/api';
 import * as api from '../services/api';
 
@@ -20,19 +20,41 @@ export default function BulkSessionInspector({ ruleId, analysisRunId, onClose }:
   const [session, setSession] = useState<BulkFixSessionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const stepsEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    (async () => {
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const fetchSession = async () => {
       try {
         const data = await api.getBulkFixSessionByRule(ruleId, analysisRunId);
+        if (cancelled) return;
         setSession(data);
+        setLoading(false);
+        // Keep polling while running
+        if (data.status === 'RUNNING' || data.status === 'PENDING') {
+          pollTimer = setTimeout(fetchSession, 2000);
+        }
       } catch (err) {
+        if (cancelled) return;
         setError(err instanceof Error ? err.message : 'Failed to load session');
-      } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchSession();
+
+    return () => {
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
+    };
   }, [ruleId, analysisRunId]);
+
+  // Auto-scroll to latest step
+  useEffect(() => {
+    stepsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [session?.steps.length]);
 
   const totalDuration =
     session?.completedAt && session?.startedAt
@@ -122,7 +144,7 @@ export default function BulkSessionInspector({ ruleId, analysisRunId, onClose }:
 
             {/* Steps timeline */}
             <div className="space-y-3" role="log" aria-label="Session steps">
-              {session.steps.map((step: FixSessionStep) => {
+              {mergeConsecutiveMessages(session.steps).map((step: FixSessionStep) => {
                 const style = eventTypeStyles[step.eventType] || eventTypeStyles.message;
                 return (
                   <div
@@ -142,9 +164,22 @@ export default function BulkSessionInspector({ ruleId, analysisRunId, onClose }:
                   </div>
                 );
               })}
-              {session.steps.length === 0 && (
+              {session.steps.length === 0 && (session.status === 'RUNNING' || session.status === 'PENDING') && (
+                <div className="flex items-center justify-center gap-2 py-4">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-400" />
+                  <p className="text-xs text-slate-500">Waiting for steps…</p>
+                </div>
+              )}
+              {session.steps.length === 0 && session.status !== 'RUNNING' && session.status !== 'PENDING' && (
                 <p className="py-4 text-center text-xs text-slate-500">No steps recorded.</p>
               )}
+              {(session.status === 'RUNNING' || session.status === 'PENDING') && session.steps.length > 0 && (
+                <div className="flex items-center justify-center gap-2 py-2">
+                  <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-400" />
+                  <p className="text-xs text-slate-500">Fix in progress…</p>
+                </div>
+              )}
+              <div ref={stepsEndRef} />
             </div>
           </>
         )}
@@ -160,4 +195,18 @@ function formatContent(content: string): string {
   } catch {
     return content;
   }
+}
+
+/** Merge consecutive 'message' steps into a single step (handles legacy fragmented deltas). */
+function mergeConsecutiveMessages(steps: FixSessionStep[]): FixSessionStep[] {
+  const merged: FixSessionStep[] = [];
+  for (const step of steps) {
+    const prev = merged[merged.length - 1];
+    if (step.eventType === 'message' && prev?.eventType === 'message') {
+      merged[merged.length - 1] = { ...prev, content: prev.content + step.content };
+    } else {
+      merged.push(step);
+    }
+  }
+  return merged;
 }

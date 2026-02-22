@@ -38,19 +38,83 @@ function loadDaxRuleQueries(): DaxRuleQuery[] {
 
 function parseDaxResult(result: unknown): Array<Record<string, unknown>> | null {
   if ((result as { isError?: boolean })?.isError) return null;
-  const content = (result as { content?: Array<{ text?: string }> })?.content;
-  if (!content || content.length === 0 || !content[0].text) return null;
-  try {
-    const parsed = JSON.parse(content[0].text);
-    if (parsed && parsed.success === false) return null;
-    const data = parsed.data ?? parsed;
-    if (Array.isArray(data)) return data;
-    if (data && Array.isArray(data.rows)) return data.rows;
-    if (data && typeof data === 'object') return [data];
-    return null;
-  } catch {
-    return null;
+  const content = (result as { content?: Array<{ type?: string; text?: string; mimeType?: string; blob?: string; uri?: string }> })?.content;
+  if (!content || content.length === 0) return null;
+
+  // First try the text content (JSON preview)
+  const textItem = content.find(c => c.type === 'text' && c.text);
+  if (textItem?.text) {
+    try {
+      const parsed = JSON.parse(textItem.text);
+      if (parsed && parsed.success === false) return null;
+      const data = parsed.data ?? parsed.results ?? parsed;
+      if (Array.isArray(data)) {
+        if (data.length > 0 && data[0] && Array.isArray(data[0].rows)) {
+          return data[0].rows;
+        }
+        return data;
+      }
+      if (data && Array.isArray(data.rows)) return data.rows;
+      if (data && typeof data === 'object') return [data];
+    } catch {
+      // fall through to CSV
+    }
   }
+
+  // Fallback: try embedded CSV resource
+  const csvItem = content.find(c => c.type === 'resource' && c.mimeType === 'text/csv');
+  const csvText = csvItem ? ((csvItem as Record<string, unknown>).text as string) : undefined;
+  if (csvText) {
+    return parseCsvResponse(csvText);
+  }
+
+  return null;
+}
+
+function parseCsvResponse(csv: string): Array<Record<string, unknown>> {
+  const lines = csv.split('\n').filter(l => l.trim().length > 0);
+  if (lines.length < 2) return [];
+  const headers = parseCsvLine(lines[0]);
+  const rows: Array<Record<string, unknown>> = [];
+  for (let i = 1; i < lines.length; i++) {
+    const values = parseCsvLine(lines[i]);
+    const row: Record<string, unknown> = {};
+    for (let j = 0; j < headers.length; j++) {
+      row[headers[j]] = values[j] ?? '';
+    }
+    rows.push(row);
+  }
+  return rows;
+}
+
+function parseCsvLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"' && line[i + 1] === '"') {
+        current += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        current += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === ',') {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += ch;
+      }
+    }
+  }
+  result.push(current.trim());
+  return result;
 }
 
 function getPropStr(obj: Record<string, unknown>, ...keys: string[]): string {
@@ -99,7 +163,7 @@ async function evaluateRules(
       batch.map((dq) =>
         client.callTool({
           name: 'dax_query_operations',
-          arguments: { request: { operation: 'Execute', query: dq.query } },
+          arguments: { request: { operation: 'Execute', query: dq.query, maxPreviewRows: 10000 } },
         }).then((result) => ({ dq, result })),
       ),
     );
@@ -113,6 +177,8 @@ async function evaluateRules(
       try {
         const rows = parseDaxResult(result);
         if (!rows) continue;
+
+        log.info({ ruleId: dq.ruleId, rowCount: rows.length, objectType: dq.objectType }, 'DAX rule query result');
 
         if (dq.threshold !== undefined) {
           if (rows.length > 0) {

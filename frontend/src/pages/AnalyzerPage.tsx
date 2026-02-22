@@ -126,6 +126,7 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const handleBulkFix = async (ruleId: string) => {
     if (!currentRun) return;
     setBulkFixingRuleId(ruleId);
+    setInspectingBulkRuleId(ruleId);
     setError('');
     try {
       await api.triggerBulkFix(ruleId, currentRun.id);

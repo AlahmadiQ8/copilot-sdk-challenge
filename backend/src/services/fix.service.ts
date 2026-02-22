@@ -166,18 +166,27 @@ Use the available MCP tools to inspect the model and apply the fix. Be precise a
     data: { agentSessionId: `fix-${sessionId}` },
   });
 
+  // Buffer for accumulating message deltas into complete messages
+  let messageBuf = '';
+  const flushMessageBuf = async () => {
+    if (messageBuf.length > 0) {
+      await addStep('message', messageBuf);
+      messageBuf = '';
+    }
+  };
+
   // Listen for events and record steps
   session.on((event: SessionEvent) => {
     if (event.type === 'assistant.message_delta') {
-      addStep('message', event.data.deltaContent).catch(() => {});
+      messageBuf += event.data.deltaContent || '';
     } else if (event.type === 'assistant.reasoning') {
-      addStep('reasoning', event.data.content || '').catch(() => {});
+      flushMessageBuf().then(() => addStep('reasoning', event.data.content || '')).catch(() => {});
     } else if (event.type === 'tool.execution_start') {
-      addStep('tool_call', JSON.stringify(event.data)).catch(() => {});
+      flushMessageBuf().then(() => addStep('tool_call', JSON.stringify(event.data))).catch(() => {});
     } else if (event.type === 'tool.execution_complete') {
-      addStep('tool_result', JSON.stringify(event.data)).catch(() => {});
+      flushMessageBuf().then(() => addStep('tool_result', JSON.stringify(event.data))).catch(() => {});
     } else if (event.type === 'session.error') {
-      addStep('error', JSON.stringify(event.data)).catch(() => {});
+      flushMessageBuf().then(() => addStep('error', JSON.stringify(event.data))).catch(() => {});
     }
   });
 
@@ -191,7 +200,10 @@ Use the available MCP tools to inspect the model and apply the fix. Be precise a
     prompt: `Fix the best practice violation: "${finding.ruleName}" on object "${finding.affectedObject}" (${finding.objectType}).${fixPromptHint}
 
 First inspect the current state of the object, then apply the minimal fix needed to resolve the violation. After applying the fix, verify it was applied correctly.`,
-  });
+  }, 300_000);
+
+  // Flush any remaining buffered message content
+  await flushMessageBuf();
 
   await client.stop();
   log.info('AI fix session completed');
@@ -404,17 +416,26 @@ Use the available MCP tools to apply the fix to EVERY object listed above. Apply
     data: { agentSessionId: `bulkfix-${sessionId}` },
   });
 
+  // Buffer for accumulating message deltas into complete messages
+  let messageBuf = '';
+  const flushMessageBuf = async () => {
+    if (messageBuf.length > 0) {
+      await addStep('message', messageBuf);
+      messageBuf = '';
+    }
+  };
+
   session.on((event: SessionEvent) => {
     if (event.type === 'assistant.message_delta') {
-      addStep('message', event.data.deltaContent).catch(() => {});
+      messageBuf += event.data.deltaContent || '';
     } else if (event.type === 'assistant.reasoning') {
-      addStep('reasoning', event.data.content || '').catch(() => {});
+      flushMessageBuf().then(() => addStep('reasoning', event.data.content || '')).catch(() => {});
     } else if (event.type === 'tool.execution_start') {
-      addStep('tool_call', JSON.stringify(event.data)).catch(() => {});
+      flushMessageBuf().then(() => addStep('tool_call', JSON.stringify(event.data))).catch(() => {});
     } else if (event.type === 'tool.execution_complete') {
-      addStep('tool_result', JSON.stringify(event.data)).catch(() => {});
+      flushMessageBuf().then(() => addStep('tool_result', JSON.stringify(event.data))).catch(() => {});
     } else if (event.type === 'session.error') {
-      addStep('error', JSON.stringify(event.data)).catch(() => {});
+      flushMessageBuf().then(() => addStep('error', JSON.stringify(event.data))).catch(() => {});
     }
   });
 
@@ -430,7 +451,10 @@ Use the available MCP tools to apply the fix to EVERY object listed above. Apply
 ${objectList}${fixPromptHint}
 
 Process each object one by one. For each: inspect its current state, apply the fix, then move to the next. After all objects are fixed, confirm the total count of fixes applied.`,
-  });
+  }, 600_000);
+
+  // Flush any remaining buffered message content
+  await flushMessageBuf();
 
   await client.stop();
   log.info('Bulk AI fix session completed');

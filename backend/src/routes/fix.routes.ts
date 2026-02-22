@@ -67,15 +67,17 @@ fixRouter.post('/findings/:findingId/fix', async (req: Request, res: Response, n
  *               type: string
  */
 fixRouter.get('/findings/:findingId/fix/stream', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const findingId = req.params.findingId as string;
+  const findingId = req.params.findingId as string;
+  let headersSent = false;
 
-    // Set SSE headers
+  try {
+    // Set SSE headers first
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     });
+    headersSent = true;
 
     const sseSessionId = await triggerFix(findingId, (step) => {
       res.write(`data: ${JSON.stringify(step)}\n\n`);
@@ -103,7 +105,13 @@ fixRouter.get('/findings/:findingId/fix/stream', async (req: Request, res: Respo
       clearInterval(checkInterval);
     });
   } catch (err) {
-    next(err);
+    if (headersSent) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.write(`data: ${JSON.stringify({ type: 'session_error', error: message })}\n\n`);
+      res.end();
+    } else {
+      next(err);
+    }
   }
 });
 
@@ -208,19 +216,22 @@ fixRouter.post('/rules/:ruleId/fix-all', async (req: Request, res: Response, nex
  *         description: SSE stream of bulk fix progress events
  */
 fixRouter.get('/rules/:ruleId/fix-all/stream', async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const ruleId = req.params.ruleId as string;
-    const analysisRunId = req.query.analysisRunId as string;
-    if (!analysisRunId) {
-      res.status(400).json({ error: 'analysisRunId query parameter is required' });
-      return;
-    }
+  const ruleId = req.params.ruleId as string;
+  const analysisRunId = req.query.analysisRunId as string;
+  let headersSent = false;
 
+  if (!analysisRunId) {
+    res.status(400).json({ error: 'analysisRunId query parameter is required' });
+    return;
+  }
+
+  try {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
       'Cache-Control': 'no-cache',
       Connection: 'keep-alive',
     });
+    headersSent = true;
 
     const sseSessionId = await triggerBulkFix(ruleId, analysisRunId, (step) => {
       res.write(`data: ${JSON.stringify(step)}\n\n`);
@@ -246,7 +257,13 @@ fixRouter.get('/rules/:ruleId/fix-all/stream', async (req: Request, res: Respons
       clearInterval(checkInterval);
     });
   } catch (err) {
-    next(err);
+    if (headersSent) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      res.write(`data: ${JSON.stringify({ type: 'session_error', error: message })}\n\n`);
+      res.end();
+    } else {
+      next(err);
+    }
   }
 });
 

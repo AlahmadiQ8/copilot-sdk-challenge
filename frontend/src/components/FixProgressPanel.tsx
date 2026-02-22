@@ -40,6 +40,21 @@ export default function FixProgressPanel({ findingId, onComplete }: FixProgressP
         onComplete?.();
         return;
       }
+      if (data.type === 'session_error') {
+        setStatus('failed');
+        setSteps((prev) => [
+          ...prev,
+          {
+            id: `step-${prev.length}`,
+            stepNumber: prev.length + 1,
+            eventType: 'error' as const,
+            content: data.error || 'Unknown error',
+            timestamp: new Date().toISOString(),
+          },
+        ]);
+        eventSource.close();
+        return;
+      }
 
       // It's a step
       setSteps((prev) => [
