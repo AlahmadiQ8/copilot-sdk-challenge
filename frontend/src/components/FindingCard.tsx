@@ -1,19 +1,15 @@
-import { useState } from 'react';
 import type { Finding } from '../types/api';
 
 interface FindingCardProps {
   finding: Finding;
   compact?: boolean;
-  onFixTriggered?: (findingId: string) => void;
   onInspectSession?: (findingId: string) => void;
-  onRecheck?: (findingId: string) => void;
-  rechecking?: boolean;
 }
 
-const severityConfig: Record<number, { label: string; color: string; bg: string }> = {
-  3: { label: 'Error', color: 'text-red-400', bg: 'bg-red-500/15 border-red-500/30' },
-  2: { label: 'Warning', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30' },
-  1: { label: 'Info', color: 'text-sky-400', bg: 'bg-sky-500/15 border-sky-500/30' },
+const severityConfig: Record<number, { label: string; color: string; bg: string; dot: string }> = {
+  3: { label: 'Error', color: 'text-red-400', bg: 'bg-red-500/15 border-red-500/30', dot: 'bg-red-400' },
+  2: { label: 'Warning', color: 'text-amber-400', bg: 'bg-amber-500/15 border-amber-500/30', dot: 'bg-amber-400' },
+  1: { label: 'Info', color: 'text-sky-400', bg: 'bg-sky-500/15 border-sky-500/30', dot: 'bg-sky-400' },
 };
 
 const fixStatusConfig: Record<string, { label: string; color: string }> = {
@@ -23,55 +19,63 @@ const fixStatusConfig: Record<string, { label: string; color: string }> = {
   FAILED: { label: 'Fix Failed', color: 'text-red-400' },
 };
 
-export default function FindingCard({ finding, compact, onFixTriggered, onInspectSession, onRecheck, rechecking }: FindingCardProps) {
-  const [fixing, setFixing] = useState(false);
+const friendlyObjectType: Record<string, string> = {
+  DataColumn: 'Column',
+  CalculatedColumn: 'Calc Column',
+  CalculatedTable: 'Calc Table',
+  Measure: 'Measure',
+  Table: 'Table',
+  Relationship: 'Relationship',
+  Model: 'Model',
+};
+
+/** Parse `'TableRef'[ObjectName]` into { table, object } or return the raw string as object. */
+function parseAffectedObject(raw: string): { object: string; table: string | null } {
+  const match = raw.match(/^'([^']+)'\[([^\]]+)\]$/);
+  if (match) return { table: match[1], object: match[2] };
+  return { object: raw, table: null };
+}
+
+export default function FindingCard({ finding, compact, onInspectSession }: FindingCardProps) {
   const sev = severityConfig[finding.severity] || severityConfig[1];
   const fix = fixStatusConfig[finding.fixStatus] || fixStatusConfig.UNFIXED;
 
-  const handleFix = () => {
-    setFixing(true);
-    onFixTriggered?.(finding.id);
-  };
-
   if (compact) {
+    const { object: objName, table: tableRef } = parseAffectedObject(finding.affectedObject);
+    const typeLabel = friendlyObjectType[finding.objectType] || finding.objectType;
+
     return (
       <div
-        className="group flex items-center gap-3 rounded-md border border-slate-700/40 bg-slate-800/30 px-3 py-2 transition hover:border-slate-600/50 hover:bg-slate-800/50"
+        className="group flex items-center gap-3 rounded-md border border-slate-700/40 bg-slate-800/30 px-3 py-2.5 transition hover:border-slate-600/50 hover:bg-slate-800/50"
         role="row"
         aria-label={`${finding.affectedObject} (${finding.objectType})`}
       >
-        <span className="min-w-0 flex-1 truncate font-mono text-xs text-slate-200">
-          {finding.affectedObject}
+        {/* Severity dot */}
+        <span className={`h-2 w-2 shrink-0 rounded-full ${sev.dot}`} title={sev.label} />
+
+        {/* Object type badge */}
+        <span className="shrink-0 rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+          {typeLabel}
         </span>
-        <span className="hidden shrink-0 text-xs text-slate-500 sm:inline">{finding.objectType}</span>
+
+        {/* Object name + table context */}
+        <div className="min-w-0 flex-1">
+          <span className="truncate text-xs font-medium text-slate-100">{objName}</span>
+          {tableRef && (
+            <span className="ml-1.5 text-[11px] text-slate-500">
+              in <span className="font-mono text-slate-400">{tableRef}</span>
+            </span>
+          )}
+        </div>
+
         <span className={`shrink-0 text-xs font-medium ${fix.color}`}>{fix.label}</span>
-        {finding.hasAutoFix && finding.fixStatus === 'UNFIXED' && (
-          <button
-            onClick={handleFix}
-            disabled={fixing}
-            className="shrink-0 rounded-md bg-violet-600/80 px-2 py-0.5 text-xs font-medium text-white transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-            aria-label={`AI Fix: ${finding.affectedObject}`}
-          >
-            {fixing ? 'Fixing…' : 'AI Fix'}
-          </button>
-        )}
         {(finding.fixStatus === 'FIXED' || finding.fixStatus === 'FAILED') && (
           <button
             onClick={() => onInspectSession?.(finding.id)}
             className="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            aria-label={`Inspect fix session for ${finding.affectedObject}`}
+            aria-label={`Inspect fix session for ${objName}`}
           >
             Inspect
-          </button>
-        )}
-        {finding.fixStatus !== 'IN_PROGRESS' && (
-          <button
-            onClick={() => onRecheck?.(finding.id)}
-            disabled={rechecking}
-            className="shrink-0 rounded-md border border-sky-600/60 bg-sky-600/10 px-2 py-0.5 text-xs font-medium text-sky-300 transition hover:border-sky-500 hover:bg-sky-600/20 hover:text-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-40"
-            aria-label={`Recheck: ${finding.affectedObject}`}
-          >
-            {rechecking ? 'Checking…' : 'Recheck'}
           </button>
         )}
       </div>
@@ -96,16 +100,6 @@ export default function FindingCard({ finding, compact, onFixTriggered, onInspec
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-medium ${fix.color}`}>{fix.label}</span>
-          {finding.hasAutoFix && finding.fixStatus === 'UNFIXED' && (
-            <button
-              onClick={handleFix}
-              disabled={fixing}
-              className="rounded-md bg-violet-600/80 px-2.5 py-1 text-xs font-medium text-white transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-              aria-label={`AI Fix: ${finding.ruleName}`}
-            >
-              {fixing ? 'Fixing…' : 'AI Fix'}
-            </button>
-          )}
           {(finding.fixStatus === 'FIXED' || finding.fixStatus === 'FAILED') && (
             <button
               onClick={() => onInspectSession?.(finding.id)}
@@ -115,31 +109,30 @@ export default function FindingCard({ finding, compact, onFixTriggered, onInspec
               Inspect
             </button>
           )}
-          {finding.fixStatus !== 'IN_PROGRESS' && (
-            <button
-              onClick={() => onRecheck?.(finding.id)}
-              disabled={rechecking}
-              className="rounded-md border border-sky-600/60 bg-sky-600/10 px-2.5 py-1 text-xs font-medium text-sky-300 transition hover:border-sky-500 hover:bg-sky-600/20 hover:text-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-40"
-              aria-label={`Recheck: ${finding.ruleName}`}
-            >
-              {rechecking ? 'Checking…' : 'Recheck'}
-            </button>
-          )}
         </div>
       </div>
 
       <h3 className="mb-1 text-sm font-medium text-slate-100">{finding.ruleName}</h3>
       <p className="mb-2 text-xs leading-relaxed text-slate-400">{finding.description}</p>
 
-      <div className="flex items-center gap-2 text-xs text-slate-500">
-        <span className="rounded bg-slate-700/60 px-1.5 py-0.5 font-mono text-[11px] text-slate-300">
-          {finding.affectedObject}
-        </span>
-        <span className="text-slate-600">·</span>
-        <span>{finding.objectType}</span>
-        <span className="text-slate-600">·</span>
-        <span className="font-mono text-slate-500">{finding.ruleId}</span>
-      </div>
+      {(() => {
+        const { object: fullObjName, table: fullTableRef } = parseAffectedObject(finding.affectedObject);
+        const fullTypeLabel = friendlyObjectType[finding.objectType] || finding.objectType;
+        return (
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <span className="rounded bg-slate-700/60 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+              {fullTypeLabel}
+            </span>
+            <span className="font-medium text-slate-300">{fullObjName}</span>
+            {fullTableRef && (
+              <>
+                <span className="text-slate-600">·</span>
+                <span>in <span className="font-mono text-slate-400">{fullTableRef}</span></span>
+              </>
+            )}
+          </div>
+        );
+      })()}
     </article>
   );
 }

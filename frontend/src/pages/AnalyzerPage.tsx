@@ -6,6 +6,7 @@ import SummaryBar from '../components/SummaryBar';
 import FindingsFilter from '../components/FindingsFilter';
 import FindingsGroupedList from '../components/FindingsGroupedList';
 import SessionInspector from '../components/SessionInspector';
+import BulkSessionInspector from '../components/BulkSessionInspector';
 
 interface AnalyzerPageProps {
   connection: ConnectionStatus;
@@ -21,7 +22,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [error, setError] = useState('');
   const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [inspectingFindingId, setInspectingFindingId] = useState<string | null>(null);
-  const [recheckingId, setRecheckingId] = useState<string | null>(null);
+  const [inspectingBulkRuleId, setInspectingBulkRuleId] = useState<string | null>(null);
+  const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
 
   // Filters
   const [severity, setSeverity] = useState('');
@@ -121,29 +123,48 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
     }
   };
 
-  const handleRecheck = async (findingId: string) => {
-    setRecheckingId(findingId);
+  const handleBulkFix = async (ruleId: string) => {
+    if (!currentRun) return;
+    setBulkFixingRuleId(ruleId);
+    setError('');
     try {
-      const { finding: updated } = await api.recheckFinding(findingId);
+      await api.triggerBulkFix(ruleId, currentRun.id);
+      // Mark affected findings as IN_PROGRESS locally
       setFindings((prev) =>
-        prev.map((f) => (f.id === findingId ? { ...f, fixStatus: updated.fixStatus, fixSummary: updated.fixSummary } : f)),
+        prev.map((f) =>
+          f.ruleId === ruleId && f.fixStatus === 'UNFIXED'
+            ? { ...f, fixStatus: 'IN_PROGRESS' as const }
+            : f,
+        ),
       );
-      if (currentRun) {
-        // Refresh summary counts
-        const result = await api.getFindings(currentRun.id, {
-          severity: severity ? Number(severity) : undefined,
-          category: category || undefined,
-          fixStatus: fixStatus || undefined,
-          sortBy: sortBy || 'severity',
-          sortOrder: sortOrder || 'desc',
-          limit: 100,
-        });
-        setSummary(result.summary);
-      }
+      // Poll for completion
+      const pollInterval = setInterval(async () => {
+        if (!currentRun) { clearInterval(pollInterval); return; }
+        try {
+          const result = await api.getFindings(currentRun.id, {
+            severity: severity ? Number(severity) : undefined,
+            category: category || undefined,
+            fixStatus: fixStatus || undefined,
+            sortBy: sortBy || 'severity',
+            sortOrder: sortOrder || 'desc',
+            limit: 100,
+          });
+          setFindings(result.findings);
+          setSummary(result.summary);
+          const ruleFindings = result.findings.filter((f) => f.ruleId === ruleId);
+          const stillInProgress = ruleFindings.some((f) => f.fixStatus === 'IN_PROGRESS');
+          if (!stillInProgress) {
+            clearInterval(pollInterval);
+            setBulkFixingRuleId(null);
+          }
+        } catch {
+          clearInterval(pollInterval);
+          setBulkFixingRuleId(null);
+        }
+      }, 3000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Recheck failed');
-    } finally {
-      setRecheckingId(null);
+      setError(err instanceof Error ? err.message : 'Bulk fix failed');
+      setBulkFixingRuleId(null);
     }
   };
 
@@ -283,14 +304,10 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             ) : findings.length > 0 ? (
               <FindingsGroupedList
                 findings={findings}
-                onFixTriggered={() => {
-                  setTimeout(() => {
-                    if (currentRun) fetchFindings(currentRun.id, { severity, category, fixStatus, sortBy, sortOrder });
-                  }, 2000);
-                }}
+                onBulkFixTriggered={handleBulkFix}
+                onInspectBulkSession={(ruleId) => setInspectingBulkRuleId(ruleId)}
                 onInspectSession={(findingId) => setInspectingFindingId(findingId)}
-                onRecheck={handleRecheck}
-                recheckingId={recheckingId}
+                bulkFixingRuleId={bulkFixingRuleId}
               />
             ) : (
               <p className="py-12 text-center text-sm text-slate-500">
@@ -314,6 +331,15 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
         <SessionInspector
           findingId={inspectingFindingId}
           onClose={() => setInspectingFindingId(null)}
+        />
+      )}
+
+      {/* Bulk Session Inspector Panel */}
+      {inspectingBulkRuleId && currentRun && (
+        <BulkSessionInspector
+          ruleId={inspectingBulkRuleId}
+          analysisRunId={currentRun.id}
+          onClose={() => setInspectingBulkRuleId(null)}
         />
       )}
     </div>

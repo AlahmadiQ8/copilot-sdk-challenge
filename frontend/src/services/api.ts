@@ -7,8 +7,9 @@ import type {
   BpaRule,
   FixSession,
   FixSessionDetail,
+  BulkFixSession,
+  BulkFixSessionDetail,
   RunComparison,
-  RecheckResult,
   DaxQueryResult,
   DaxQueryHistoryItem,
 } from '../types/api';
@@ -111,12 +112,6 @@ export async function getFinding(findingId: string): Promise<Finding> {
   return request(`/findings/${encodeURIComponent(findingId)}`);
 }
 
-// ── Recheck ──
-
-export async function recheckFinding(findingId: string): Promise<RecheckResult> {
-  return request(`/findings/${encodeURIComponent(findingId)}/recheck`, { method: 'POST' });
-}
-
 // ── Rules ──
 
 export async function getRules(category?: string): Promise<BpaRule[]> {
@@ -137,6 +132,31 @@ export async function getFixSession(findingId: string): Promise<FixSessionDetail
 export function streamFixProgress(findingId: string): EventSource {
   const apiBase = import.meta.env.VITE_API_URL || '/api';
   return new EventSource(`${apiBase}/findings/${encodeURIComponent(findingId)}/fix/stream`);
+}
+
+// ── Bulk Fix ──
+
+export async function triggerBulkFix(
+  ruleId: string,
+  analysisRunId: string,
+): Promise<BulkFixSession> {
+  return request(`/rules/${encodeURIComponent(ruleId)}/fix-all`, {
+    method: 'POST',
+    body: JSON.stringify({ analysisRunId }),
+  });
+}
+
+export async function getBulkFixSession(sessionId: string): Promise<BulkFixSessionDetail> {
+  return request(`/bulk-fix/${encodeURIComponent(sessionId)}`);
+}
+
+export async function getBulkFixSessionByRule(
+  ruleId: string,
+  analysisRunId: string,
+): Promise<BulkFixSessionDetail> {
+  return request(
+    `/bulk-fix/by-rule/${encodeURIComponent(ruleId)}?analysisRunId=${encodeURIComponent(analysisRunId)}`,
+  );
 }
 
 // ── DAX ──

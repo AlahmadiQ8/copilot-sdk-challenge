@@ -73,12 +73,6 @@ export interface FindingsListResponse {
   total: number;
 }
 
-// ── Recheck ──
-export interface RecheckResult {
-  resolved: boolean;
-  finding: Finding;
-}
-
 // ── Run Comparison ──
 export interface RunComparisonItem {
   ruleId: string;
@@ -115,6 +109,23 @@ export interface FixSessionStep {
 }
 
 export interface FixSessionDetail extends FixSession {
+  steps: FixSessionStep[];
+}
+
+// ── Bulk Fix Session ──
+export interface BulkFixSession {
+  id: string;
+  ruleId: string;
+  analysisRunId: string;
+  status: FixSessionStatus;
+  totalFindings: number;
+  fixedCount: number;
+  failedCount: number;
+  startedAt: string;
+  completedAt: string | null;
+}
+
+export interface BulkFixSessionDetail extends BulkFixSession {
   steps: FixSessionStep[];
 }
 

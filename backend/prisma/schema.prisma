@@ -61,6 +61,30 @@ model FixSessionStep {
   timestamp    DateTime   @default(now())
 }
 
+model BulkFixSession {
+  id             String               @id @default(cuid())
+  ruleId         String
+  analysisRunId  String
+  agentSessionId String?
+  status         String               @default("PENDING")
+  totalFindings  Int
+  fixedCount     Int                  @default(0)
+  failedCount    Int                  @default(0)
+  startedAt      DateTime             @default(now())
+  completedAt    DateTime?
+  steps          BulkFixSessionStep[]
+}
+
+model BulkFixSessionStep {
+  id               String          @id @default(cuid())
+  bulkFixSessionId String
+  bulkFixSession   BulkFixSession  @relation(fields: [bulkFixSessionId], references: [id], onDelete: Cascade)
+  stepNumber       Int
+  eventType        String
+  content          String
+  timestamp        DateTime        @default(now())
+}
+
 model DaxQuery {
   id              String   @id @default(cuid())
   queryText       String

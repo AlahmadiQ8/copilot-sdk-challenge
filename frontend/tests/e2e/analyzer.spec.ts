@@ -86,9 +86,9 @@ test.describe('Connect & Analyze Flow (US1)', () => {
     await expect(groupHeader.getByText('Error', { exact: true })).toBeVisible();
     await expect(groupHeader.getByText('Error Prevention')).toBeVisible();
 
-    // Compact row inside the group should show the AI Fix button
-    const compactRow = page.locator('[role="row"]', { hasText: "'Sales'[OrderDate]" });
-    await expect(compactRow.getByText('AI Fix')).toBeVisible();
+    // Group header should show the AI Fix All button
+    const ruleGroup = page.locator('[role="listitem"]', { hasText: 'Avoid inactive relationships' });
+    await expect(ruleGroup.getByRole('button', { name: /AI Fix All/ })).toBeVisible();
   });
 
   test('should navigate between tabs', async ({ page }) => {

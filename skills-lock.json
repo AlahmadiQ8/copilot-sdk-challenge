@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "playground": {
+      "source": "anthropics/claude-plugins-official",
+      "sourceType": "github",
+      "computedHash": "ebeaf44264e6346e224ffb83d18aa07c2b25646f4f83438e36f393b34be2d73f"
+    }
+  }
+}

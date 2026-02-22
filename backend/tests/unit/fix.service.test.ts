@@ -4,7 +4,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 const mockPrisma = {
   finding: {
     findUnique: vi.fn(),
+    findMany: vi.fn(),
     update: vi.fn(),
+    updateMany: vi.fn(),
   },
   fixSession: {
     create: vi.fn(),
@@ -12,6 +14,15 @@ const mockPrisma = {
     findUnique: vi.fn(),
   },
   fixSessionStep: {
+    create: vi.fn(),
+  },
+  bulkFixSession: {
+    create: vi.fn(),
+    update: vi.fn(),
+    findUnique: vi.fn(),
+    findFirst: vi.fn(),
+  },
+  bulkFixSessionStep: {
     create: vi.fn(),
   },
 };
@@ -60,7 +71,7 @@ vi.mock('@github/copilot-sdk', () => ({
   SessionEvent: {},
 }));
 
-const { triggerFix, getFixSession } = await import('../../src/services/fix.service.js');
+const { triggerFix, getFixSession, triggerBulkFix, getBulkFixSession } = await import('../../src/services/fix.service.js');
 
 describe('fix.service', () => {
   beforeEach(() => {
@@ -206,6 +217,92 @@ describe('fix.service', () => {
     it('throws 404 if session not found', async () => {
       mockPrisma.fixSession.findUnique.mockResolvedValue(null);
       await expect(getFixSession('nonexistent')).rejects.toThrow('Fix session not found');
+    });
+  });
+
+  describe('triggerBulkFix', () => {
+    it('creates a bulk fix session and marks findings in progress', async () => {
+      const mockFindings = [
+        {
+          id: 'f1',
+          ruleId: 'HIDDEN_COLUMN',
+          ruleName: 'Hide FK columns',
+          description: 'FK columns should be hidden',
+          affectedObject: "'Sales'[RegionId]",
+          objectType: 'DataColumn',
+          fixStatus: 'UNFIXED',
+          hasAutoFix: true,
+        },
+        {
+          id: 'f2',
+          ruleId: 'HIDDEN_COLUMN',
+          ruleName: 'Hide FK columns',
+          description: 'FK columns should be hidden',
+          affectedObject: "'Sales'[ProductId]",
+          objectType: 'DataColumn',
+          fixStatus: 'UNFIXED',
+          hasAutoFix: true,
+        },
+      ];
+      mockPrisma.finding.findMany.mockResolvedValue(mockFindings);
+      mockPrisma.bulkFixSession.create.mockResolvedValue({ id: 'bfs1' });
+      mockPrisma.finding.updateMany.mockResolvedValue({ count: 2 });
+      mockPrisma.bulkFixSessionStep.create.mockResolvedValue({});
+      mockPrisma.bulkFixSession.update.mockResolvedValue({});
+      mockPrisma.finding.update.mockResolvedValue({});
+
+      const sessionId = await triggerBulkFix('HIDDEN_COLUMN', 'run1');
+      expect(sessionId).toBe('bfs1');
+      expect(mockPrisma.bulkFixSession.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            ruleId: 'HIDDEN_COLUMN',
+            analysisRunId: 'run1',
+            status: 'RUNNING',
+            totalFindings: 2,
+          }),
+        }),
+      );
+      expect(mockPrisma.finding.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['f1', 'f2'] } },
+          data: { fixStatus: 'IN_PROGRESS' },
+        }),
+      );
+    });
+
+    it('throws 404 if no unfixed findings exist', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue([]);
+      await expect(triggerBulkFix('HIDDEN_COLUMN', 'run1')).rejects.toThrow(
+        'No unfixed findings for this rule',
+      );
+    });
+  });
+
+  describe('getBulkFixSession', () => {
+    it('returns session with steps', async () => {
+      mockPrisma.bulkFixSession.findUnique.mockResolvedValue({
+        id: 'bfs1',
+        ruleId: 'HIDDEN_COLUMN',
+        status: 'COMPLETED',
+        totalFindings: 3,
+        fixedCount: 3,
+        failedCount: 0,
+        steps: [
+          { id: 's1', stepNumber: 1, eventType: 'reasoning', content: 'Bulk fixing...' },
+          { id: 's2', stepNumber: 2, eventType: 'tool_call', content: '{}' },
+        ],
+      });
+
+      const session = await getBulkFixSession('bfs1');
+      expect(session.steps).toHaveLength(2);
+      expect(session.totalFindings).toBe(3);
+      expect(session.fixedCount).toBe(3);
+    });
+
+    it('throws 404 if session not found', async () => {
+      mockPrisma.bulkFixSession.findUnique.mockResolvedValue(null);
+      await expect(getBulkFixSession('nonexistent')).rejects.toThrow('Bulk fix session not found');
     });
   });
 });
