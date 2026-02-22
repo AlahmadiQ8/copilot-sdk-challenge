@@ -6,6 +6,8 @@ interface FindingCardProps {
   compact?: boolean;
   onFixTriggered?: (findingId: string) => void;
   onInspectSession?: (findingId: string) => void;
+  onRecheck?: (findingId: string) => void;
+  rechecking?: boolean;
 }
 
 const severityConfig: Record<number, { label: string; color: string; bg: string }> = {
@@ -21,7 +23,7 @@ const fixStatusConfig: Record<string, { label: string; color: string }> = {
   FAILED: { label: 'Fix Failed', color: 'text-red-400' },
 };
 
-export default function FindingCard({ finding, compact, onFixTriggered, onInspectSession }: FindingCardProps) {
+export default function FindingCard({ finding, compact, onFixTriggered, onInspectSession, onRecheck, rechecking }: FindingCardProps) {
   const [fixing, setFixing] = useState(false);
   const sev = severityConfig[finding.severity] || severityConfig[1];
   const fix = fixStatusConfig[finding.fixStatus] || fixStatusConfig.UNFIXED;
@@ -60,6 +62,16 @@ export default function FindingCard({ finding, compact, onFixTriggered, onInspec
             aria-label={`Inspect fix session for ${finding.affectedObject}`}
           >
             Inspect
+          </button>
+        )}
+        {finding.fixStatus !== 'IN_PROGRESS' && (
+          <button
+            onClick={() => onRecheck?.(finding.id)}
+            disabled={rechecking}
+            className="shrink-0 rounded-md border border-sky-600/60 bg-sky-600/10 px-2 py-0.5 text-xs font-medium text-sky-300 transition hover:border-sky-500 hover:bg-sky-600/20 hover:text-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-40"
+            aria-label={`Recheck: ${finding.affectedObject}`}
+          >
+            {rechecking ? 'Checking…' : 'Recheck'}
           </button>
         )}
       </div>
@@ -101,6 +113,16 @@ export default function FindingCard({ finding, compact, onFixTriggered, onInspec
               aria-label={`Inspect fix session for ${finding.ruleName}`}
             >
               Inspect
+            </button>
+          )}
+          {finding.fixStatus !== 'IN_PROGRESS' && (
+            <button
+              onClick={() => onRecheck?.(finding.id)}
+              disabled={rechecking}
+              className="rounded-md border border-sky-600/60 bg-sky-600/10 px-2.5 py-1 text-xs font-medium text-sky-300 transition hover:border-sky-500 hover:bg-sky-600/20 hover:text-sky-200 focus:outline-none focus:ring-2 focus:ring-sky-400 disabled:opacity-40"
+              aria-label={`Recheck: ${finding.ruleName}`}
+            >
+              {rechecking ? 'Checking…' : 'Recheck'}
             </button>
           )}
         </div>

@@ -8,6 +8,7 @@ import type {
   FixSession,
   FixSessionDetail,
   RunComparison,
+  RecheckResult,
   DaxQueryResult,
   DaxQueryHistoryItem,
 } from '../types/api';
@@ -108,6 +109,12 @@ export async function getFindings(
 
 export async function getFinding(findingId: string): Promise<Finding> {
   return request(`/findings/${encodeURIComponent(findingId)}`);
+}
+
+// ── Recheck ──
+
+export async function recheckFinding(findingId: string): Promise<RecheckResult> {
+  return request(`/findings/${encodeURIComponent(findingId)}/recheck`, { method: 'POST' });
 }
 
 // ── Rules ──

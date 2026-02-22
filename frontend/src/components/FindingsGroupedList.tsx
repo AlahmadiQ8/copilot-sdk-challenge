@@ -6,6 +6,8 @@ interface FindingsGroupedListProps {
   findings: Finding[];
   onFixTriggered: (findingId: string) => void;
   onInspectSession: (findingId: string) => void;
+  onRecheck: (findingId: string) => void;
+  recheckingId: string | null;
 }
 
 interface RuleGroup {
@@ -27,6 +29,8 @@ export default function FindingsGroupedList({
   findings,
   onFixTriggered,
   onInspectSession,
+  onRecheck,
+  recheckingId,
 }: FindingsGroupedListProps) {
   const groups = useMemo(() => {
     const map = new Map<string, RuleGroup>();
@@ -161,6 +165,8 @@ export default function FindingsGroupedList({
                     compact
                     onFixTriggered={() => onFixTriggered(f.id)}
                     onInspectSession={() => onInspectSession(f.id)}
+                    onRecheck={() => onRecheck(f.id)}
+                    rechecking={recheckingId === f.id}
                   />
                 ))}
               </div>

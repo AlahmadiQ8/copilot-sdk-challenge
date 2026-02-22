@@ -73,6 +73,12 @@ export interface FindingsListResponse {
   total: number;
 }
 
+// ── Recheck ──
+export interface RecheckResult {
+  resolved: boolean;
+  finding: Finding;
+}
+
 // ── Run Comparison ──
 export interface RunComparisonItem {
   ruleId: string;

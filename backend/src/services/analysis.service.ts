@@ -323,6 +323,71 @@ export async function getFinding(findingId: string) {
   });
 }
 
+// ─── Recheck Individual Finding ──────────────────────────────────────
+
+export async function recheckFinding(findingId: string) {
+  const finding = await prisma.finding.findUnique({ where: { id: findingId } });
+  if (!finding) throw Object.assign(new Error('Finding not found'), { statusCode: 404 });
+
+  const connStatus = getConnectionStatus();
+  if (!connStatus.connected) {
+    throw Object.assign(new Error('No model connected'), { statusCode: 422 });
+  }
+
+  const client = getMcpClient();
+  if (!client) throw Object.assign(new Error('Not connected to a model'), { statusCode: 422 });
+
+  const daxQueries = loadDaxRuleQueries();
+  const dq = daxQueries.find((q) => q.ruleId === finding.ruleId);
+  if (!dq) {
+    throw Object.assign(new Error('No DAX query found for this rule'), { statusCode: 422 });
+  }
+
+  const result = await client.callTool({
+    name: 'dax_query_operations',
+    arguments: { request: { operation: 'Execute', query: dq.query } },
+  });
+
+  const rows = parseDaxResult(result);
+  let stillPresent = false;
+
+  if (rows && rows.length > 0) {
+    if (dq.threshold !== undefined) {
+      const count = Number(Object.values(rows[0])[0] ?? 0);
+      stillPresent = count > dq.threshold;
+    } else {
+      for (const row of rows) {
+        const rr = row as Record<string, unknown>;
+        const tableName = getPropStr(rr, dq.mapResult.tableName ?? '', dq.mapResult.fromTable ?? '', 'tableName', 'TableName', 'name', 'Name');
+        const objName = getPropStr(
+          rr,
+          dq.mapResult.measureName ?? '', dq.mapResult.columnName ?? '', dq.mapResult.tableName ?? '',
+          'name', 'Name', 'measureName', 'columnName',
+        );
+        const affectedObject = tableName && objName && objName !== tableName
+          ? `'${tableName}'[${objName}]`
+          : tableName || objName || `Unknown_${dq.objectType}`;
+
+        if (affectedObject === finding.affectedObject) {
+          stillPresent = true;
+          break;
+        }
+      }
+    }
+  }
+
+  const newStatus = stillPresent ? 'UNFIXED' : 'FIXED';
+  const updated = await prisma.finding.update({
+    where: { id: findingId },
+    data: {
+      fixStatus: newStatus,
+      ...(newStatus === 'FIXED' && !finding.fixSummary ? { fixSummary: 'Verified fixed via recheck' } : {}),
+    },
+  });
+
+  return { ...updated, resolved: !stillPresent };
+}
+
 export async function compareRuns(currentRunId: string, previousRunId: string) {
   const [currentFindings, previousFindings] = await Promise.all([
     prisma.finding.findMany({ where: { analysisRunId: currentRunId } }),

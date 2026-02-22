@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getFindings, getFinding } from '../services/analysis.service.js';
+import { getFindings, getFinding, recheckFinding } from '../services/analysis.service.js';
 import { createError } from '../middleware/errorHandler.js';
 
 export const findingsRouter = Router();
@@ -130,6 +130,53 @@ findingsRouter.get('/findings/:findingId', async (req, res, next) => {
       throw createError(404, 'Finding not found');
     }
     res.json(finding);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * @openapi
+ * /api/findings/{findingId}/recheck:
+ *   post:
+ *     summary: Recheck a single finding against the live model
+ *     tags: [Findings]
+ *     parameters:
+ *       - in: path
+ *         name: findingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Recheck result with updated finding
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 resolved:
+ *                   type: boolean
+ *                 finding:
+ *                   $ref: '#/components/schemas/Finding'
+ *       404:
+ *         description: Finding not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ *       422:
+ *         description: No model connected or no DAX query for rule
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ErrorResponse'
+ */
+findingsRouter.post('/findings/:findingId/recheck', async (req, res, next) => {
+  try {
+    const result = await recheckFinding(req.params.findingId);
+    const { resolved, ...finding } = result;
+    res.json({ resolved, finding });
   } catch (err) {
     next(err);
   }

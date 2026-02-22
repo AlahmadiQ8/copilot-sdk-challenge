@@ -21,6 +21,7 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [error, setError] = useState('');
   const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [inspectingFindingId, setInspectingFindingId] = useState<string | null>(null);
+  const [recheckingId, setRecheckingId] = useState<string | null>(null);
 
   // Filters
   const [severity, setSeverity] = useState('');
@@ -117,6 +118,32 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
         sortBy: newSortBy,
         sortOrder: newSortOrder,
       });
+    }
+  };
+
+  const handleRecheck = async (findingId: string) => {
+    setRecheckingId(findingId);
+    try {
+      const { finding: updated } = await api.recheckFinding(findingId);
+      setFindings((prev) =>
+        prev.map((f) => (f.id === findingId ? { ...f, fixStatus: updated.fixStatus, fixSummary: updated.fixSummary } : f)),
+      );
+      if (currentRun) {
+        // Refresh summary counts
+        const result = await api.getFindings(currentRun.id, {
+          severity: severity ? Number(severity) : undefined,
+          category: category || undefined,
+          fixStatus: fixStatus || undefined,
+          sortBy: sortBy || 'severity',
+          sortOrder: sortOrder || 'desc',
+          limit: 100,
+        });
+        setSummary(result.summary);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Recheck failed');
+    } finally {
+      setRecheckingId(null);
     }
   };
 
@@ -262,6 +289,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
                   }, 2000);
                 }}
                 onInspectSession={(findingId) => setInspectingFindingId(findingId)}
+                onRecheck={handleRecheck}
+                recheckingId={recheckingId}
               />
             ) : (
               <p className="py-12 text-center text-sm text-slate-500">
