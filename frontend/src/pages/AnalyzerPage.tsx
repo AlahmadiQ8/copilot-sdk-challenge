@@ -1,8 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import type { ConnectionStatus, Finding, FindingSummary, AnalysisRun, RunComparison } from '../types/api';
 import * as api from '../services/api';
 import ConnectionPanel from '../components/ConnectionPanel';
-import SummaryBar from '../components/SummaryBar';
+import AnalysisDashboard from '../components/AnalysisDashboard';
 import FindingsFilter from '../components/FindingsFilter';
 import FindingsGroupedList from '../components/FindingsGroupedList';
 import BulkSessionInspector from '../components/BulkSessionInspector';
@@ -14,61 +14,70 @@ interface AnalyzerPageProps {
 
 export default function AnalyzerPage({ connection, onConnectionChange }: AnalyzerPageProps) {
   const [currentRun, setCurrentRun] = useState<AnalysisRun | null>(null);
-  const [findings, setFindings] = useState<Finding[]>([]);
+  const [allFindings, setAllFindings] = useState<Finding[]>([]);
   const [summary, setSummary] = useState<FindingSummary | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [loadingFindings, setLoadingFindings] = useState(false);
   const [error, setError] = useState('');
   const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [inspectingBulkRuleId, setInspectingBulkRuleId] = useState<string | null>(null);
   const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
 
-  // Filters
+  // Client-side filters
   const [severity, setSeverity] = useState('');
   const [category, setCategory] = useState('');
   const [fixStatus, setFixStatus] = useState('');
   const [sortBy, setSortBy] = useState('severity');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
-  const fetchFindings = useCallback(
-    async (
-      runId: string,
-      filters: {
-        severity?: string;
-        category?: string;
-        fixStatus?: string;
-        sortBy?: string;
-        sortOrder?: 'asc' | 'desc';
-      },
-    ) => {
-      setLoadingFindings(true);
-      try {
-        const result = await api.getFindings(runId, {
-          severity: filters.severity ? Number(filters.severity) : undefined,
-          category: filters.category || undefined,
-          fixStatus: filters.fixStatus || undefined,
-          sortBy: filters.sortBy || 'severity',
-          sortOrder: filters.sortOrder || 'desc',
-          limit: 100,
-        });
-        setFindings(result.findings);
-        setSummary(result.summary);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load findings');
-      } finally {
-        setLoadingFindings(false);
+  // Client-side filtering + sorting (no server round-trip)
+  const filteredFindings = useMemo(() => {
+    let result = allFindings;
+    if (severity) result = result.filter((f) => f.severity === Number(severity));
+    if (category) result = result.filter((f) => f.category === category);
+    if (fixStatus) result = result.filter((f) => f.fixStatus === fixStatus);
+
+    return [...result].sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case 'severity':
+          cmp = a.severity - b.severity;
+          break;
+        case 'category':
+          cmp = a.category.localeCompare(b.category);
+          break;
+        case 'ruleName':
+          cmp = a.ruleName.localeCompare(b.ruleName);
+          break;
+        case 'affectedObject':
+          cmp = a.affectedObject.localeCompare(b.affectedObject);
+          break;
+        default:
+          cmp = a.severity - b.severity;
       }
-    },
-    [],
-  );
+      return sortOrder === 'desc' ? -cmp : cmp;
+    });
+  }, [allFindings, severity, category, fixStatus, sortBy, sortOrder]);
+
+  const fetchAllFindings = useCallback(async (runId: string) => {
+    try {
+      const result = await api.getFindings(runId, { limit: 5000 });
+      setAllFindings(result.findings);
+      setSummary(result.summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load findings');
+    }
+  }, []);
 
   const handleRunAnalysis = async () => {
     const previousRunId = currentRun?.id;
     setAnalyzing(true);
     setError('');
-    setFindings([]);
+    setAllFindings([]);
     setSummary(null);
     setComparison(null);
+    setCategory('');
+    setSeverity('');
+    setFixStatus('');
     try {
       const { runId } = await api.runAnalysis();
 
@@ -82,9 +91,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
       }
 
       if (run && run.status === 'COMPLETED') {
-        await fetchFindings(runId, { severity, category, fixStatus, sortBy, sortOrder });
+        await fetchAllFindings(runId);
 
-        // If this is a rerun, fetch comparison
         if (previousRunId) {
           try {
             const comp = await api.compareAnalysisRuns(runId, previousRunId);
@@ -103,24 +111,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
     }
   };
 
-  const handleFilterChange = (
-    newSeverity: string,
-    newCategory: string,
-    newFixStatus: string,
-    newSortBy: string,
-    newSortOrder: 'asc' | 'desc',
-  ) => {
-    if (currentRun && currentRun.status === 'COMPLETED') {
-      fetchFindings(currentRun.id, {
-        severity: newSeverity,
-        category: newCategory,
-        fixStatus: newFixStatus,
-        sortBy: newSortBy,
-        sortOrder: newSortOrder,
-      });
-    }
-  };
-
   const handleBulkFix = async (ruleId: string) => {
     if (!currentRun) return;
     setBulkFixingRuleId(ruleId);
@@ -128,27 +118,21 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
     setError('');
     try {
       await api.triggerBulkFix(ruleId, currentRun.id);
-      // Mark affected findings as IN_PROGRESS locally
-      setFindings((prev) =>
+      setAllFindings((prev) =>
         prev.map((f) =>
           f.ruleId === ruleId && f.fixStatus === 'UNFIXED'
             ? { ...f, fixStatus: 'IN_PROGRESS' as const }
             : f,
         ),
       );
-      // Poll for completion
       const pollInterval = setInterval(async () => {
-        if (!currentRun) { clearInterval(pollInterval); return; }
+        if (!currentRun) {
+          clearInterval(pollInterval);
+          return;
+        }
         try {
-          const result = await api.getFindings(currentRun.id, {
-            severity: severity ? Number(severity) : undefined,
-            category: category || undefined,
-            fixStatus: fixStatus || undefined,
-            sortBy: sortBy || 'severity',
-            sortOrder: sortOrder || 'desc',
-            limit: 100,
-          });
-          setFindings(result.findings);
+          const result = await api.getFindings(currentRun.id, { limit: 5000 });
+          setAllFindings(result.findings);
           setSummary(result.summary);
           const ruleFindings = result.findings.filter((f) => f.ruleId === ruleId);
           const stillInProgress = ruleFindings.some((f) => f.fixStatus === 'IN_PROGRESS');
@@ -166,6 +150,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
       setBulkFixingRuleId(null);
     }
   };
+
+  const hasActiveFilters = !!(severity || category || fixStatus);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 lg:px-6 2xl:max-w-[1800px] 2xl:px-8">
@@ -218,17 +204,17 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
           <div className="flex gap-6 text-sm">
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-              <span className="text-emerald-400 font-medium">{comparison.resolvedCount}</span>
+              <span className="font-medium text-emerald-400">{comparison.resolvedCount}</span>
               <span className="text-slate-400">Resolved</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-              <span className="text-red-400 font-medium">{comparison.newCount}</span>
+              <span className="font-medium text-red-400">{comparison.newCount}</span>
               <span className="text-slate-400">New</span>
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-              <span className="text-amber-400 font-medium">{comparison.recurringCount}</span>
+              <span className="font-medium text-amber-400">{comparison.recurringCount}</span>
               <span className="text-slate-400">Recurring</span>
             </span>
           </div>
@@ -260,58 +246,78 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
         </div>
       )}
 
-      {/* Summary */}
-      <SummaryBar summary={summary} loading={analyzing} />
+      {/* Loading skeleton */}
+      {analyzing && !summary && (
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-[220px_1fr]">
+            <div className="h-[140px] animate-pulse rounded-xl bg-slate-800/40" />
+            <div className="h-[140px] animate-pulse rounded-xl bg-slate-800/40" />
+          </div>
+          <div className="flex gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-8 w-28 animate-pulse rounded-lg bg-slate-800/40" />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Dashboard */}
+      {summary && (
+        <AnalysisDashboard
+          summary={summary}
+          findings={allFindings}
+          selectedCategory={category}
+          onCategoryChange={setCategory}
+        />
+      )}
 
       {/* Filters + Findings */}
       {summary && (
         <>
-          <FindingsFilter
-            severity={severity}
-            category={category}
-            fixStatus={fixStatus}
-            sortBy={sortBy}
-            sortOrder={sortOrder}
-            onSeverityChange={(v) => {
-              setSeverity(v);
-              handleFilterChange(v, category, fixStatus, sortBy, sortOrder);
-            }}
-            onCategoryChange={(v) => {
-              setCategory(v);
-              handleFilterChange(severity, v, fixStatus, sortBy, sortOrder);
-            }}
-            onFixStatusChange={(v) => {
-              setFixStatus(v);
-              handleFilterChange(severity, category, v, sortBy, sortOrder);
-            }}
-            onSortByChange={(v) => {
-              setSortBy(v);
-              handleFilterChange(severity, category, fixStatus, v, sortOrder);
-            }}
-            onSortOrderChange={(v) => {
-              setSortOrder(v);
-              handleFilterChange(severity, category, fixStatus, sortBy, v);
-            }}
-          />
-
-          {loadingFindings ? (
-              <div className="space-y-2">
-                {[1, 2, 3].map((i) => (
-                  <div key={i} className="h-28 animate-pulse rounded-lg bg-slate-800/40" />
-                ))}
-              </div>
-            ) : findings.length > 0 ? (
-              <FindingsGroupedList
-                findings={findings}
-                onBulkFixTriggered={handleBulkFix}
-                onInspectBulkSession={(ruleId) => setInspectingBulkRuleId(ruleId)}
-                bulkFixingRuleId={bulkFixingRuleId}
-              />
-            ) : (
-              <p className="py-12 text-center text-sm text-slate-500">
-                No findings match the current filters.
-              </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <FindingsFilter
+              severity={severity}
+              fixStatus={fixStatus}
+              sortBy={sortBy}
+              sortOrder={sortOrder}
+              onSeverityChange={setSeverity}
+              onFixStatusChange={setFixStatus}
+              onSortByChange={setSortBy}
+              onSortOrderChange={setSortOrder}
+            />
+            {hasActiveFilters && (
+              <button
+                onClick={() => {
+                  setSeverity('');
+                  setCategory('');
+                  setFixStatus('');
+                }}
+                className="rounded-md px-2 py-1 text-[11px] font-medium text-slate-500 transition hover:text-slate-300"
+              >
+                Clear filters
+              </button>
             )}
+            <span className="ml-auto text-xs tabular-nums text-slate-500">
+              {filteredFindings.length === allFindings.length
+                ? `${allFindings.length.toLocaleString()} findings`
+                : `${filteredFindings.length.toLocaleString()} of ${allFindings.length.toLocaleString()}`}
+            </span>
+          </div>
+
+          {filteredFindings.length > 0 ? (
+            <FindingsGroupedList
+              key={currentRun?.id}
+              findings={filteredFindings}
+              onBulkFixTriggered={handleBulkFix}
+              onInspectBulkSession={(ruleId) => setInspectingBulkRuleId(ruleId)}
+              bulkFixingRuleId={bulkFixingRuleId}
+              defaultCollapsed
+            />
+          ) : (
+            <p className="py-12 text-center text-sm text-slate-500">
+              No findings match the current filters.
+            </p>
+          )}
         </>
       )}
 

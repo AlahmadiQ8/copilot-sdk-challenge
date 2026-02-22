@@ -19,7 +19,7 @@ export async function runAnalysis(): Promise<string> {
     data: {
       modelName: connStatus.databaseName || 'Unknown',
       serverAddress: connStatus.serverAddress || '',
-      databaseName: connStatus.databaseName || '',
+      databaseName: connStatus.catalogName || connStatus.databaseName || '',
       status: 'RUNNING',
     },
   });
@@ -188,7 +188,7 @@ export async function recheckFinding(findingId: string) {
 
   const allFindings = await evaluateRulesWithTabularEditor(
     connStatus.serverAddress || '',
-    connStatus.databaseName || '',
+    connStatus.catalogName || connStatus.databaseName || '',
     rules,
     log,
   );

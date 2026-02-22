@@ -202,6 +202,12 @@ export function runTabularEditor(
             { statusCode: 422 },
           ));
         }
+        // TE2 returns exit code 1 when BPA violations are found — this is
+        // expected behaviour, not an error. Only reject when there is no
+        // stdout (i.e. TE failed to produce any output at all).
+        if (stdout) {
+          return resolve({ stdout, stderr: stderr || '' });
+        }
         return reject(new Error(`Tabular Editor analysis failed: ${stderr || error.message}`));
       }
       resolve({ stdout: stdout || '', stderr: stderr || '' });
