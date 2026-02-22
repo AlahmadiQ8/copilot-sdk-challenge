@@ -5,8 +5,6 @@ import type {
   FindingsListResponse,
   Finding,
   BpaRule,
-  FixSession,
-  FixSessionDetail,
   BulkFixSession,
   BulkFixSessionDetail,
   RunComparison,
@@ -117,21 +115,6 @@ export async function getFinding(findingId: string): Promise<Finding> {
 export async function getRules(category?: string): Promise<BpaRule[]> {
   const qs = category ? `?category=${encodeURIComponent(category)}` : '';
   return request(`/rules${qs}`);
-}
-
-// ── Fix ──
-
-export async function triggerFix(findingId: string): Promise<FixSession> {
-  return request(`/findings/${encodeURIComponent(findingId)}/fix`, { method: 'POST' });
-}
-
-export async function getFixSession(findingId: string): Promise<FixSessionDetail> {
-  return request(`/findings/${encodeURIComponent(findingId)}/fix/session`);
-}
-
-export function streamFixProgress(findingId: string): EventSource {
-  const apiBase = import.meta.env.VITE_API_URL || '/api';
-  return new EventSource(`${apiBase}/findings/${encodeURIComponent(findingId)}/fix/stream`);
 }
 
 // ── Bulk Fix ──

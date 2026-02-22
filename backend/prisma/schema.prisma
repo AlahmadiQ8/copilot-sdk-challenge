@@ -37,28 +37,6 @@ model Finding {
   hasAutoFix      Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
-  fixSession      FixSession?
-}
-
-model FixSession {
-  id             String           @id @default(cuid())
-  findingId      String           @unique
-  finding        Finding          @relation(fields: [findingId], references: [id], onDelete: Cascade)
-  agentSessionId String?
-  status         String           @default("PENDING")
-  startedAt      DateTime         @default(now())
-  completedAt    DateTime?
-  steps          FixSessionStep[]
-}
-
-model FixSessionStep {
-  id           String     @id @default(cuid())
-  fixSessionId String
-  fixSession   FixSession @relation(fields: [fixSessionId], references: [id], onDelete: Cascade)
-  stepNumber   Int
-  eventType    String
-  content      String
-  timestamp    DateTime   @default(now())
 }
 
 model BulkFixSession {

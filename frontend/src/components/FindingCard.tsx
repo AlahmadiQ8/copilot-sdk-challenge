@@ -3,7 +3,6 @@ import type { Finding } from '../types/api';
 interface FindingCardProps {
   finding: Finding;
   compact?: boolean;
-  onInspectSession?: (findingId: string) => void;
 }
 
 const severityConfig: Record<number, { label: string; color: string; bg: string; dot: string }> = {
@@ -36,7 +35,7 @@ function parseAffectedObject(raw: string): { object: string; table: string | nul
   return { object: raw, table: null };
 }
 
-export default function FindingCard({ finding, compact, onInspectSession }: FindingCardProps) {
+export default function FindingCard({ finding, compact }: FindingCardProps) {
   const sev = severityConfig[finding.severity] || severityConfig[1];
   const fix = fixStatusConfig[finding.fixStatus] || fixStatusConfig.UNFIXED;
 
@@ -69,15 +68,6 @@ export default function FindingCard({ finding, compact, onInspectSession }: Find
         </div>
 
         <span className={`shrink-0 text-xs font-medium ${fix.color}`}>{fix.label}</span>
-        {(finding.fixStatus === 'FIXED' || finding.fixStatus === 'FAILED') && (
-          <button
-            onClick={() => onInspectSession?.(finding.id)}
-            className="shrink-0 rounded-md border border-slate-600 px-2 py-0.5 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
-            aria-label={`Inspect fix session for ${objName}`}
-          >
-            Inspect
-          </button>
-        )}
       </div>
     );
   }
@@ -100,15 +90,6 @@ export default function FindingCard({ finding, compact, onInspectSession }: Find
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-xs font-medium ${fix.color}`}>{fix.label}</span>
-          {(finding.fixStatus === 'FIXED' || finding.fixStatus === 'FAILED') && (
-            <button
-              onClick={() => onInspectSession?.(finding.id)}
-              className="rounded-md border border-slate-600 px-2.5 py-1 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
-              aria-label={`Inspect fix session for ${finding.ruleName}`}
-            >
-              Inspect
-            </button>
-          )}
         </div>
       </div>
 

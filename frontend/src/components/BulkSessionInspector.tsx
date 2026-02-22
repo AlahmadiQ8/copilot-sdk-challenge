@@ -21,6 +21,16 @@ export default function BulkSessionInspector({ ruleId, analysisRunId, onClose }:
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const stepsEndRef = useRef<HTMLDivElement>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+
+  const toggleStep = (stepId: string) => {
+    setExpandedSteps((prev) => {
+      const next = new Set(prev);
+      if (next.has(stepId)) next.delete(stepId);
+      else next.add(stepId);
+      return next;
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -146,21 +156,42 @@ export default function BulkSessionInspector({ ruleId, analysisRunId, onClose }:
             <div className="space-y-3" role="log" aria-label="Session steps">
               {mergeConsecutiveMessages(session.steps).map((step: FixSessionStep) => {
                 const style = eventTypeStyles[step.eventType] || eventTypeStyles.message;
+                const isToolStep = step.eventType === 'tool_call' || step.eventType === 'tool_result';
+                const isExpanded = expandedSteps.has(step.id);
                 return (
                   <div
                     key={step.id}
                     className="rounded-lg border border-slate-700/30 bg-slate-800/30 p-3"
                   >
-                    <div className="mb-1.5 flex items-center gap-2 text-xs">
+                    <div
+                      className={`flex items-center gap-2 text-xs${isToolStep ? ' cursor-pointer select-none' : ' mb-1.5'}`}
+                      onClick={isToolStep ? () => toggleStep(step.id) : undefined}
+                      role={isToolStep ? 'button' : undefined}
+                      aria-expanded={isToolStep ? isExpanded : undefined}
+                    >
+                      {isToolStep && (
+                        <svg
+                          className={`h-3 w-3 shrink-0 text-slate-500 transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`}
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                          strokeWidth={2}
+                          aria-hidden="true"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      )}
                       <span aria-hidden="true">{style.icon}</span>
                       <span className={`font-semibold ${style.color}`}>{style.label}</span>
                       <span className="ml-auto text-slate-500">
                         #{step.stepNumber} · {new Date(step.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
-                    <pre className="max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-400">
-                      {formatContent(step.content)}
-                    </pre>
+                    {(!isToolStep || isExpanded) && (
+                      <pre className="mt-1.5 max-h-40 overflow-auto whitespace-pre-wrap break-words text-xs text-slate-400">
+                        {formatContent(step.content)}
+                      </pre>
+                    )}
                   </div>
                 );
               })}

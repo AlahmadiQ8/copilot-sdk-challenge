@@ -5,7 +5,6 @@ import ConnectionPanel from '../components/ConnectionPanel';
 import SummaryBar from '../components/SummaryBar';
 import FindingsFilter from '../components/FindingsFilter';
 import FindingsGroupedList from '../components/FindingsGroupedList';
-import SessionInspector from '../components/SessionInspector';
 import BulkSessionInspector from '../components/BulkSessionInspector';
 
 interface AnalyzerPageProps {
@@ -21,7 +20,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [loadingFindings, setLoadingFindings] = useState(false);
   const [error, setError] = useState('');
   const [comparison, setComparison] = useState<RunComparison | null>(null);
-  const [inspectingFindingId, setInspectingFindingId] = useState<string | null>(null);
   const [inspectingBulkRuleId, setInspectingBulkRuleId] = useState<string | null>(null);
   const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
 
@@ -307,7 +305,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
                 findings={findings}
                 onBulkFixTriggered={handleBulkFix}
                 onInspectBulkSession={(ruleId) => setInspectingBulkRuleId(ruleId)}
-                onInspectSession={(findingId) => setInspectingFindingId(findingId)}
                 bulkFixingRuleId={bulkFixingRuleId}
               />
             ) : (
@@ -325,14 +322,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             Run analysis to check your model against best-practice rules.
           </p>
         </div>
-      )}
-
-      {/* Session Inspector Panel */}
-      {inspectingFindingId && (
-        <SessionInspector
-          findingId={inspectingFindingId}
-          onClose={() => setInspectingFindingId(null)}
-        />
       )}
 
       {/* Bulk Session Inspector Panel */}

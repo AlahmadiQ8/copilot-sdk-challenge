@@ -32,25 +32,28 @@ CREATE TABLE "Finding" (
 );
 
 -- CreateTable
-CREATE TABLE "FixSession" (
+CREATE TABLE "BulkFixSession" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "findingId" TEXT NOT NULL,
+    "ruleId" TEXT NOT NULL,
+    "analysisRunId" TEXT NOT NULL,
     "agentSessionId" TEXT,
     "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "totalFindings" INTEGER NOT NULL,
+    "fixedCount" INTEGER NOT NULL DEFAULT 0,
+    "failedCount" INTEGER NOT NULL DEFAULT 0,
     "startedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    "completedAt" DATETIME,
-    CONSTRAINT "FixSession_findingId_fkey" FOREIGN KEY ("findingId") REFERENCES "Finding" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    "completedAt" DATETIME
 );
 
 -- CreateTable
-CREATE TABLE "FixSessionStep" (
+CREATE TABLE "BulkFixSessionStep" (
     "id" TEXT NOT NULL PRIMARY KEY,
-    "fixSessionId" TEXT NOT NULL,
+    "bulkFixSessionId" TEXT NOT NULL,
     "stepNumber" INTEGER NOT NULL,
     "eventType" TEXT NOT NULL,
     "content" TEXT NOT NULL,
     "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT "FixSessionStep_fixSessionId_fkey" FOREIGN KEY ("fixSessionId") REFERENCES "FixSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+    CONSTRAINT "BulkFixSessionStep_bulkFixSessionId_fkey" FOREIGN KEY ("bulkFixSessionId") REFERENCES "BulkFixSession" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
 -- CreateTable
@@ -65,6 +68,3 @@ CREATE TABLE "DaxQuery" (
     "errorMessage" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-
--- CreateIndex
-CREATE UNIQUE INDEX "FixSession_findingId_key" ON "FixSession"("findingId");

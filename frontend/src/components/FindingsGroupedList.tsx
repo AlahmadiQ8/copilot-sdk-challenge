@@ -6,7 +6,6 @@ interface FindingsGroupedListProps {
   findings: Finding[];
   onBulkFixTriggered: (ruleId: string) => void;
   onInspectBulkSession: (ruleId: string) => void;
-  onInspectSession: (findingId: string) => void;
   bulkFixingRuleId: string | null;
 }
 
@@ -29,7 +28,6 @@ export default function FindingsGroupedList({
   findings,
   onBulkFixTriggered,
   onInspectBulkSession,
-  onInspectSession,
   bulkFixingRuleId,
 }: FindingsGroupedListProps) {
   const groups = useMemo(() => {
@@ -203,7 +201,6 @@ export default function FindingsGroupedList({
                     key={f.id}
                     finding={f}
                     compact
-                    onInspectSession={() => onInspectSession(f.id)}
                   />
                 ))}
               </div>

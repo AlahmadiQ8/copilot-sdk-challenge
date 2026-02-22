@@ -88,17 +88,9 @@ export interface RunComparison {
   new: RunComparisonItem[];
 }
 
-// ── Fix Session ──
+// ── Fix Types ──
 export type FixSessionStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
 export type StepEventType = 'reasoning' | 'tool_call' | 'tool_result' | 'message' | 'error';
-
-export interface FixSession {
-  id: string;
-  findingId: string;
-  status: FixSessionStatus;
-  startedAt: string;
-  completedAt: string | null;
-}
 
 export interface FixSessionStep {
   id: string;
@@ -106,10 +98,6 @@ export interface FixSessionStep {
   eventType: StepEventType;
   content: string;
   timestamp: string;
-}
-
-export interface FixSessionDetail extends FixSession {
-  steps: FixSessionStep[];
 }
 
 // ── Bulk Fix Session ──
