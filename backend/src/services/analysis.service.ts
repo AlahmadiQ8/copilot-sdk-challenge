@@ -1,242 +1,8 @@
-import { readFileSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
 import prisma from '../models/prisma.js';
-import { getMcpClient } from '../mcp/client.js';
 import { getRawRules } from './rules.service.js';
 import { getConnectionStatus } from '../mcp/client.js';
 import { childLogger } from '../middleware/logger.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// ─── DAX Rule Query Loading ──────────────────────────────────────────
-
-interface DaxRuleQuery {
-  ruleId: string;
-  description: string;
-  query: string;
-  objectType: string;
-  mapResult: Record<string, string>;
-  threshold?: number;
-}
-
-let cachedDaxRuleQueries: DaxRuleQuery[] | null = null;
-
-function loadDaxRuleQueries(): DaxRuleQuery[] {
-  if (cachedDaxRuleQueries) return cachedDaxRuleQueries;
-  try {
-    const raw = readFileSync(join(__dirname, '..', 'data', 'dax-rule-queries.json'), 'utf-8');
-    cachedDaxRuleQueries = JSON.parse(raw);
-    return cachedDaxRuleQueries!;
-  } catch {
-    return [];
-  }
-}
-
-// ─── MCP Response Parsing ────────────────────────────────────────────
-
-function parseDaxResult(result: unknown): Array<Record<string, unknown>> | null {
-  if ((result as { isError?: boolean })?.isError) return null;
-  const content = (result as { content?: Array<{ type?: string; text?: string; mimeType?: string; blob?: string; uri?: string }> })?.content;
-  if (!content || content.length === 0) return null;
-
-  // First try the text content (JSON preview)
-  const textItem = content.find(c => c.type === 'text' && c.text);
-  if (textItem?.text) {
-    try {
-      const parsed = JSON.parse(textItem.text);
-      if (parsed && parsed.success === false) return null;
-      const data = parsed.data ?? parsed.results ?? parsed;
-      if (Array.isArray(data)) {
-        if (data.length > 0 && data[0] && Array.isArray(data[0].rows)) {
-          return data[0].rows;
-        }
-        return data;
-      }
-      if (data && Array.isArray(data.rows)) return data.rows;
-      if (data && typeof data === 'object') return [data];
-    } catch {
-      // fall through to CSV
-    }
-  }
-
-  // Fallback: try embedded CSV resource
-  const csvItem = content.find(c => c.type === 'resource' && c.mimeType === 'text/csv');
-  const csvText = csvItem ? ((csvItem as Record<string, unknown>).text as string) : undefined;
-  if (csvText) {
-    return parseCsvResponse(csvText);
-  }
-
-  return null;
-}
-
-function parseCsvResponse(csv: string): Array<Record<string, unknown>> {
-  const lines = csv.split('\n').filter(l => l.trim().length > 0);
-  if (lines.length < 2) return [];
-  const headers = parseCsvLine(lines[0]);
-  const rows: Array<Record<string, unknown>> = [];
-  for (let i = 1; i < lines.length; i++) {
-    const values = parseCsvLine(lines[i]);
-    const row: Record<string, unknown> = {};
-    for (let j = 0; j < headers.length; j++) {
-      row[headers[j]] = values[j] ?? '';
-    }
-    rows.push(row);
-  }
-  return rows;
-}
-
-function parseCsvLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
-  let inQuotes = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (inQuotes) {
-      if (ch === '"' && line[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else if (ch === '"') {
-        inQuotes = false;
-      } else {
-        current += ch;
-      }
-    } else {
-      if (ch === '"') {
-        inQuotes = true;
-      } else if (ch === ',') {
-        result.push(current.trim());
-        current = '';
-      } else {
-        current += ch;
-      }
-    }
-  }
-  result.push(current.trim());
-  return result;
-}
-
-function getPropStr(obj: Record<string, unknown>, ...keys: string[]): string {
-  for (const key of keys) {
-    const val = obj[key];
-    if (val !== null && val !== undefined && val !== '') return String(val);
-  }
-  return '';
-}
-
-// ─── Rule Evaluation via DAX Queries ─────────────────────────────────
-
-interface RuleEvaluation {
-  ruleId: string;
-  ruleName: string;
-  category: string;
-  severity: number;
-  description: string;
-  affectedObject: string;
-  objectType: string;
-  hasAutoFix: boolean;
-}
-
-const BATCH_SIZE = 5;
-
-async function evaluateRules(
-  rules: Array<{ ID: string; Name: string; Category: string; Severity: number; Description: string; FixExpression?: string }>,
-  log: ReturnType<typeof childLogger>,
-): Promise<RuleEvaluation[]> {
-  const client = getMcpClient();
-  if (!client) throw new Error('Not connected to a model');
-
-  const daxQueries = loadDaxRuleQueries();
-  if (daxQueries.length === 0) {
-    log.warn('No DAX rule queries found');
-    return [];
-  }
-
-  const ruleMap = new Map(rules.map((r) => [r.ID, r]));
-  const findings: RuleEvaluation[] = [];
-  const seenKeys = new Set<string>();
-
-  for (let i = 0; i < daxQueries.length; i += BATCH_SIZE) {
-    const batch = daxQueries.slice(i, i + BATCH_SIZE);
-    const results = await Promise.allSettled(
-      batch.map((dq) =>
-        client.callTool({
-          name: 'dax_query_operations',
-          arguments: { request: { operation: 'Execute', query: dq.query, maxPreviewRows: 10000 } },
-        }).then((result) => ({ dq, result })),
-      ),
-    );
-
-    for (const settled of results) {
-      if (settled.status === 'rejected') continue;
-      const { dq, result } = settled.value;
-      const rule = ruleMap.get(dq.ruleId);
-      if (!rule) continue;
-
-      try {
-        const rows = parseDaxResult(result);
-        if (!rows) continue;
-
-        log.info({ ruleId: dq.ruleId, rowCount: rows.length, objectType: dq.objectType }, 'DAX rule query result');
-
-        if (dq.threshold !== undefined) {
-          if (rows.length > 0) {
-            const count = Number(Object.values(rows[0])[0] ?? 0);
-            if (count > dq.threshold) {
-              const key = `${dq.ruleId}::Model`;
-              if (!seenKeys.has(key)) {
-                findings.push({
-                  ruleId: rule.ID,
-                  ruleName: rule.Name,
-                  category: rule.Category,
-                  severity: rule.Severity,
-                  description: rule.Description || '',
-                  affectedObject: 'Model',
-                  objectType: 'Model',
-                  hasAutoFix: true,
-                });
-                seenKeys.add(key);
-              }
-            }
-          }
-        } else {
-          for (const row of rows) {
-            const rr = row as Record<string, unknown>;
-            const tableName = getPropStr(rr, dq.mapResult.tableName ?? '', dq.mapResult.fromTable ?? '', 'tableName', 'TableName', 'name', 'Name');
-            const objName = getPropStr(
-              rr,
-              dq.mapResult.measureName ?? '', dq.mapResult.columnName ?? '', dq.mapResult.tableName ?? '',
-              'name', 'Name', 'measureName', 'columnName',
-            );
-            const affectedObject = tableName && objName && objName !== tableName
-              ? `'${tableName}'[${objName}]`
-              : tableName || objName || `Unknown_${dq.objectType}`;
-
-            const key = `${dq.ruleId}::${affectedObject}`;
-            if (seenKeys.has(key)) continue;
-
-            findings.push({
-              ruleId: rule.ID,
-              ruleName: rule.Name,
-              category: rule.Category,
-              severity: rule.Severity,
-              description: rule.Description || '',
-              affectedObject,
-              objectType: dq.objectType,
-              hasAutoFix: true,
-            });
-            seenKeys.add(key);
-          }
-        }
-      } catch (err) {
-        log.warn({ err, ruleId: dq.ruleId }, 'DAX rule query failed, skipping');
-      }
-    }
-  }
-
-  return findings;
-}
+import { evaluateRulesWithTabularEditor, validateTabularEditorPath } from './tabular-editor.service.js';
 
 // ─── Analysis Orchestration ──────────────────────────────────────────
 
@@ -245,6 +11,9 @@ export async function runAnalysis(): Promise<string> {
   if (!connStatus.connected) {
     throw Object.assign(new Error('No model connected'), { statusCode: 422 });
   }
+
+  // Validate TE path early, before creating the analysis run record
+  await validateTabularEditorPath();
 
   const run = await prisma.analysisRun.create({
     data: {
@@ -267,10 +36,19 @@ export async function runAnalysis(): Promise<string> {
 async function processAnalysis(runId: string, log: ReturnType<typeof childLogger>): Promise<void> {
   try {
     log.info('Starting analysis');
+
+    const run = await prisma.analysisRun.findUnique({ where: { id: runId } });
+    if (!run) throw new Error(`Analysis run ${runId} not found`);
+
     const rules = await getRawRules();
     log.info({ ruleCount: rules.length }, 'Rules loaded');
 
-    const allFindings = await evaluateRules(rules, log);
+    const allFindings = await evaluateRulesWithTabularEditor(
+      run.serverAddress,
+      run.databaseName,
+      rules,
+      log,
+    );
     log.info({ findingsCount: allFindings.length }, 'Rule evaluation complete');
 
     if (allFindings.length > 0) {
@@ -306,7 +84,12 @@ async function processAnalysis(runId: string, log: ReturnType<typeof childLogger
 
     log.info({ errorCount, warningCount, infoCount }, 'Analysis completed');
   } catch (err) {
-    log.error({ err }, 'Analysis processing failed');
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    const errorType = errorMessage.includes('timed out') ? 'timeout'
+      : errorMessage.includes('not found at') ? 'not_found'
+      : errorMessage.includes('not configured') ? 'misconfigured'
+      : 'crash';
+    log.error({ err, errorType }, 'Analysis processing failed');
     await prisma.analysisRun.update({
       where: { id: runId },
       data: { status: 'FAILED', completedAt: new Date() },
@@ -400,47 +183,19 @@ export async function recheckFinding(findingId: string) {
     throw Object.assign(new Error('No model connected'), { statusCode: 422 });
   }
 
-  const client = getMcpClient();
-  if (!client) throw Object.assign(new Error('Not connected to a model'), { statusCode: 422 });
+  const log = childLogger({ findingId, ruleId: finding.ruleId });
+  const rules = await getRawRules();
 
-  const daxQueries = loadDaxRuleQueries();
-  const dq = daxQueries.find((q) => q.ruleId === finding.ruleId);
-  if (!dq) {
-    throw Object.assign(new Error('No DAX query found for this rule'), { statusCode: 422 });
-  }
+  const allFindings = await evaluateRulesWithTabularEditor(
+    connStatus.serverAddress || '',
+    connStatus.databaseName || '',
+    rules,
+    log,
+  );
 
-  const result = await client.callTool({
-    name: 'dax_query_operations',
-    arguments: { request: { operation: 'Execute', query: dq.query } },
-  });
-
-  const rows = parseDaxResult(result);
-  let stillPresent = false;
-
-  if (rows && rows.length > 0) {
-    if (dq.threshold !== undefined) {
-      const count = Number(Object.values(rows[0])[0] ?? 0);
-      stillPresent = count > dq.threshold;
-    } else {
-      for (const row of rows) {
-        const rr = row as Record<string, unknown>;
-        const tableName = getPropStr(rr, dq.mapResult.tableName ?? '', dq.mapResult.fromTable ?? '', 'tableName', 'TableName', 'name', 'Name');
-        const objName = getPropStr(
-          rr,
-          dq.mapResult.measureName ?? '', dq.mapResult.columnName ?? '', dq.mapResult.tableName ?? '',
-          'name', 'Name', 'measureName', 'columnName',
-        );
-        const affectedObject = tableName && objName && objName !== tableName
-          ? `'${tableName}'[${objName}]`
-          : tableName || objName || `Unknown_${dq.objectType}`;
-
-        if (affectedObject === finding.affectedObject) {
-          stillPresent = true;
-          break;
-        }
-      }
-    }
-  }
+  const stillPresent = allFindings.some(
+    (f) => f.ruleId === finding.ruleId && f.affectedObject === finding.affectedObject,
+  );
 
   const newStatus = stillPresent ? 'UNFIXED' : 'FIXED';
   const updated = await prisma.finding.update({
