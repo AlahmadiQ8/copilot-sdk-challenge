@@ -142,6 +142,14 @@ export async function getBulkFixSessionByRule(
   );
 }
 
+// ── Tabular Editor Fix ──
+
+export async function applyTeFix(
+  findingId: string,
+): Promise<{ findingId: string; status: string; fixSummary: string }> {
+  return request(`/findings/${encodeURIComponent(findingId)}/te-fix`, { method: 'POST' });
+}
+
 // ── DAX ──
 
 export async function executeDax(query: string): Promise<DaxQueryResult> {

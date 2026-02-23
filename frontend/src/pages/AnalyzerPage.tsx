@@ -21,6 +21,7 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [comparison, setComparison] = useState<RunComparison | null>(null);
   const [inspectingBulkRuleId, setInspectingBulkRuleId] = useState<string | null>(null);
   const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
+  const [teFixingId, setTeFixingId] = useState<string | null>(null);
 
   // Client-side filters
   const [severity, setSeverity] = useState('');
@@ -148,6 +149,33 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Bulk fix failed');
       setBulkFixingRuleId(null);
+    }
+  };
+
+  const handleTeFix = async (findingId: string) => {
+    setTeFixingId(findingId);
+    setError('');
+    try {
+      const result = await api.applyTeFix(findingId);
+      setAllFindings((prev) =>
+        prev.map((f) =>
+          f.id === findingId
+            ? { ...f, fixStatus: result.status as 'FIXED', fixSummary: result.fixSummary }
+            : f,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'TE fix failed');
+      // Refresh finding status from server
+      if (currentRun) {
+        try {
+          const result = await api.getFindings(currentRun.id, { limit: 5000 });
+          setAllFindings(result.findings);
+          setSummary(result.summary);
+        } catch { /* ignore refresh error */ }
+      }
+    } finally {
+      setTeFixingId(null);
     }
   };
 
@@ -312,6 +340,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
               onInspectBulkSession={(ruleId) => setInspectingBulkRuleId(ruleId)}
               bulkFixingRuleId={bulkFixingRuleId}
               defaultCollapsed
+              onTeFix={handleTeFix}
+              teFixingId={teFixingId}
             />
           ) : (
             <p className="py-12 text-center text-sm text-slate-500">

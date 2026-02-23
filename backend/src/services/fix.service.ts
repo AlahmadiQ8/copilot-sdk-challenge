@@ -2,11 +2,82 @@ import { CopilotClient, SessionEvent } from '@github/copilot-sdk';
 import prisma from '../models/prisma.js';
 import { getRawRules } from './rules.service.js';
 import { childLogger } from '../middleware/logger.js';
+import { generateFixScript, runTabularEditorScript } from './tabular-editor.service.js';
+import { getConnectionStatus } from '../mcp/client.js';
 
 type StepEventType = 'reasoning' | 'tool_call' | 'tool_result' | 'message' | 'error';
 
 interface FixStepCallback {
   (step: { eventType: StepEventType; content: string; stepNumber: number }): void;
+}
+
+// ── Tabular Editor Fix (per-finding) ──
+
+export async function applyTeFix(findingId: string): Promise<{ findingId: string; status: string; fixSummary: string }> {
+  const finding = await prisma.finding.findUnique({ where: { id: findingId } });
+  if (!finding) {
+    throw Object.assign(new Error('Finding not found'), { statusCode: 404 });
+  }
+
+  if (finding.fixStatus === 'FIXED') {
+    throw Object.assign(new Error('Finding is already fixed'), { statusCode: 409 });
+  }
+
+  if (!finding.hasAutoFix) {
+    throw Object.assign(new Error('This finding does not have an auto-fix expression'), { statusCode: 422 });
+  }
+
+  const connStatus = getConnectionStatus();
+  if (!connStatus.connected) {
+    throw Object.assign(new Error('No model connected'), { statusCode: 422 });
+  }
+
+  // Look up the FixExpression from the rule definitions
+  const rules = await getRawRules();
+  const rule = rules.find((r) => r.ID === finding.ruleId);
+  if (!rule?.FixExpression) {
+    throw Object.assign(new Error(`No FixExpression found for rule: ${finding.ruleId}`), { statusCode: 422 });
+  }
+
+  const log = childLogger({ findingId, ruleId: finding.ruleId });
+  log.info({ affectedObject: finding.affectedObject, objectType: finding.objectType }, 'Applying TE fix');
+
+  // Mark as in-progress
+  await prisma.finding.update({
+    where: { id: findingId },
+    data: { fixStatus: 'IN_PROGRESS' },
+  });
+
+  try {
+    const script = generateFixScript(finding.objectType, finding.affectedObject, rule.FixExpression);
+    log.info({ script }, 'Generated fix script');
+
+    const serverAddress = connStatus.serverAddress!;
+    const databaseName = connStatus.catalogName || connStatus.databaseName!;
+
+    const { stdout, stderr } = await runTabularEditorScript(serverAddress, databaseName, script);
+
+    if (stderr) {
+      log.warn({ stderr: stderr.substring(0, 500) }, 'TE fix stderr output');
+    }
+
+    const summary = `Fixed via Tabular Editor: ${rule.FixExpression}`;
+    await prisma.finding.update({
+      where: { id: findingId },
+      data: { fixStatus: 'FIXED', fixSummary: summary },
+    });
+
+    log.info({ stdout: stdout.substring(0, 200) }, 'TE fix applied successfully');
+    return { findingId, status: 'FIXED', fixSummary: summary };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    await prisma.finding.update({
+      where: { id: findingId },
+      data: { fixStatus: 'FAILED', fixSummary: `TE fix failed: ${message}` },
+    });
+    log.error({ err }, 'TE fix failed');
+    throw Object.assign(new Error(`TE fix failed: ${message}`), { statusCode: 500 });
+  }
 }
 
 // ── Bulk Fix (rule-level) ──
