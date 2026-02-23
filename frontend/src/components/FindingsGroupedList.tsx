@@ -10,6 +10,8 @@ interface FindingsGroupedListProps {
   defaultCollapsed?: boolean;
   onTeFix?: (findingId: string) => void;
   teFixingId?: string | null;
+  onBulkTeFix?: (ruleId: string) => void;
+  bulkTeFixingRuleId?: string | null;
 }
 
 interface RuleGroup {
@@ -35,6 +37,8 @@ export default function FindingsGroupedList({
   defaultCollapsed = false,
   onTeFix,
   teFixingId,
+  onBulkTeFix,
+  bulkTeFixingRuleId,
 }: FindingsGroupedListProps) {
   const groups = useMemo(() => {
     const map = new Map<string, RuleGroup>();
@@ -103,6 +107,8 @@ export default function FindingsGroupedList({
         const failedCount = group.findings.filter((f) => f.fixStatus === 'FAILED').length;
         const hasAutoFix = group.findings.some((f) => f.hasAutoFix);
         const isBulkFixing = bulkFixingRuleId === group.ruleId || inProgressCount > 0;
+        const isBulkTeFix = bulkTeFixingRuleId === group.ruleId;
+        const isAnyBulkRunning = isBulkFixing || isBulkTeFix;
         const allDone = unfixedCount === 0 && inProgressCount === 0;
 
         return (
@@ -173,22 +179,39 @@ export default function FindingsGroupedList({
 
               {/* Bulk fix actions (outside the toggle button) */}
               <div className="flex items-center gap-2 pr-4" onClick={(e) => e.stopPropagation()}>
-                {hasAutoFix && unfixedCount > 0 && !isBulkFixing && (
-                  <button
-                    onClick={() => onBulkFixTriggered(group.ruleId)}
-                    className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                    aria-label={`Fix all ${unfixedCount} violations of ${group.ruleName}`}
-                  >
-                    AI Fix All ({unfixedCount})
-                  </button>
+                {hasAutoFix && unfixedCount > 0 && !isAnyBulkRunning && (
+                  <>
+                    {onBulkTeFix && (
+                      <button
+                        onClick={() => onBulkTeFix(group.ruleId)}
+                        className="rounded-md bg-emerald-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-40"
+                        aria-label={`TE Fix all ${unfixedCount} violations of ${group.ruleName}`}
+                      >
+                        TE Fix All ({unfixedCount})
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onBulkFixTriggered(group.ruleId)}
+                      className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
+                      aria-label={`AI Fix all ${unfixedCount} violations of ${group.ruleName}`}
+                    >
+                      AI Fix All ({unfixedCount})
+                    </button>
+                  </>
                 )}
-                {isBulkFixing && (
+                {isBulkTeFix && (
+                  <span className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 px-3 py-1.5 text-xs font-medium text-emerald-300">
+                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400/30 border-t-emerald-400" />
+                    TE Fixing {unfixedCount}…
+                  </span>
+                )}
+                {isBulkFixing && !isBulkTeFix && (
                   <span className="flex items-center gap-1.5 rounded-md bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-300">
                     <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-400" />
                     Fixing {inProgressCount || unfixedCount}…
                   </span>
                 )}
-                {allDone && (fixedCount > 0 || failedCount > 0) && (
+                {allDone && !isAnyBulkRunning && (fixedCount > 0 || failedCount > 0) && (
                   <button
                     onClick={() => onInspectBulkSession(group.ruleId)}
                     className="rounded-md border border-slate-600 px-2.5 py-1 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
@@ -214,7 +237,7 @@ export default function FindingsGroupedList({
                     key={f.id}
                     finding={f}
                     compact
-                    onTeFix={onTeFix}
+                    onTeFix={isAnyBulkRunning ? undefined : onTeFix}
                     teFixingId={teFixingId}
                   />
                 ))}

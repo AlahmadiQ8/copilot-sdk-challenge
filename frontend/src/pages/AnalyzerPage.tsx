@@ -22,6 +22,7 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [inspectingBulkRuleId, setInspectingBulkRuleId] = useState<string | null>(null);
   const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
   const [teFixingId, setTeFixingId] = useState<string | null>(null);
+  const [bulkTeFixingRuleId, setBulkTeFixingRuleId] = useState<string | null>(null);
 
   // Client-side filters
   const [severity, setSeverity] = useState('');
@@ -176,6 +177,39 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
       }
     } finally {
       setTeFixingId(null);
+    }
+  };
+
+  const handleBulkTeFix = async (ruleId: string) => {
+    if (!currentRun) return;
+    setBulkTeFixingRuleId(ruleId);
+    setError('');
+    // Optimistically mark unfixed findings as IN_PROGRESS
+    setAllFindings((prev) =>
+      prev.map((f) =>
+        f.ruleId === ruleId && f.fixStatus === 'UNFIXED' && f.hasAutoFix
+          ? { ...f, fixStatus: 'IN_PROGRESS' as const }
+          : f,
+      ),
+    );
+    try {
+      await api.applyBulkTeFix(ruleId, currentRun.id);
+      // Refresh all findings from server to get accurate status
+      const result = await api.getFindings(currentRun.id, { limit: 5000 });
+      setAllFindings(result.findings);
+      setSummary(result.summary);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Bulk TE fix failed');
+      // Refresh findings to see actual status
+      if (currentRun) {
+        try {
+          const result = await api.getFindings(currentRun.id, { limit: 5000 });
+          setAllFindings(result.findings);
+          setSummary(result.summary);
+        } catch { /* ignore refresh error */ }
+      }
+    } finally {
+      setBulkTeFixingRuleId(null);
     }
   };
 
@@ -342,6 +376,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
               defaultCollapsed
               onTeFix={handleTeFix}
               teFixingId={teFixingId}
+              onBulkTeFix={handleBulkTeFix}
+              bulkTeFixingRuleId={bulkTeFixingRuleId}
             />
           ) : (
             <p className="py-12 text-center text-sm text-slate-500">

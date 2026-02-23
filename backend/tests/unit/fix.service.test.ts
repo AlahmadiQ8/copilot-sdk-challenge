@@ -70,13 +70,15 @@ vi.mock('@github/copilot-sdk', () => ({
 
 // Mock tabular-editor.service for TE fix
 const mockGenerateFixScript = vi.fn().mockReturnValue('var obj = ...; obj.IsHidden = true;');
+const mockGenerateBulkFixScript = vi.fn().mockReturnValue({ script: '{ var obj = ...; obj.IsHidden = true; }', skippedIndices: [] });
 const mockRunTabularEditorScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
 vi.mock('../../src/services/tabular-editor.service.js', () => ({
   generateFixScript: (...args: unknown[]) => mockGenerateFixScript(...args),
+  generateBulkFixScript: (...args: unknown[]) => mockGenerateBulkFixScript(...args),
   runTabularEditorScript: (...args: unknown[]) => mockRunTabularEditorScript(...args),
 }));
 
-const { triggerBulkFix, getBulkFixSession, applyTeFix } = await import('../../src/services/fix.service.js');
+const { triggerBulkFix, getBulkFixSession, applyTeFix, applyBulkTeFix } = await import('../../src/services/fix.service.js');
 
 describe('fix.service', () => {
   beforeEach(() => {
@@ -247,6 +249,110 @@ describe('fix.service', () => {
       expect(mockPrisma.finding.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: 'f1' },
+          data: expect.objectContaining({ fixStatus: 'FAILED' }),
+        }),
+      );
+    });
+  });
+
+  describe('applyBulkTeFix', () => {
+    const bulkFindings = [
+      {
+        id: 'f1',
+        ruleId: 'HIDDEN_COLUMN',
+        ruleName: '[Maintenance] Hide foreign key columns',
+        category: 'Maintenance',
+        severity: 2,
+        description: 'FK columns should be hidden',
+        affectedObject: "'Sales'[RegionId]",
+        objectType: 'DataColumn',
+        fixStatus: 'UNFIXED',
+        hasAutoFix: true,
+      },
+      {
+        id: 'f2',
+        ruleId: 'HIDDEN_COLUMN',
+        ruleName: '[Maintenance] Hide foreign key columns',
+        category: 'Maintenance',
+        severity: 2,
+        description: 'FK columns should be hidden',
+        affectedObject: "'Sales'[ProductId]",
+        objectType: 'DataColumn',
+        fixStatus: 'UNFIXED',
+        hasAutoFix: true,
+      },
+    ];
+
+    it('applies bulk TE fix and marks all findings as FIXED', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue(bulkFindings);
+      mockPrisma.finding.updateMany.mockResolvedValue({ count: 2 });
+      mockGenerateBulkFixScript.mockReturnValue({ script: '// bulk script', skippedIndices: [] });
+      mockRunTabularEditorScript.mockResolvedValue({ stdout: 'Done', stderr: '' });
+
+      const result = await applyBulkTeFix('HIDDEN_COLUMN', 'run1');
+      expect(result.status).toBe('COMPLETED');
+      expect(result.fixedCount).toBe(2);
+      expect(result.skippedCount).toBe(0);
+
+      // Should mark IN_PROGRESS first
+      expect(mockPrisma.finding.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['f1', 'f2'] } },
+          data: { fixStatus: 'IN_PROGRESS' },
+        }),
+      );
+
+      // Should mark FIXED after success
+      expect(mockPrisma.finding.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['f1', 'f2'] } },
+          data: expect.objectContaining({ fixStatus: 'FIXED' }),
+        }),
+      );
+    });
+
+    it('throws 404 when no unfixed findings exist', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue([]);
+      await expect(applyBulkTeFix('HIDDEN_COLUMN', 'run1')).rejects.toThrow('No unfixed findings');
+    });
+
+    it('throws 422 when rule has no FixExpression', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue([{ ...bulkFindings[0], ruleId: 'NO_FIX_RULE' }]);
+      await expect(applyBulkTeFix('NO_FIX_RULE', 'run1')).rejects.toThrow('No FixExpression found');
+    });
+
+    it('marks skipped findings as FAILED and fixable ones as FIXED', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue(bulkFindings);
+      mockPrisma.finding.updateMany.mockResolvedValue({ count: 1 });
+      // Second finding (index 1) is skipped
+      mockGenerateBulkFixScript.mockReturnValue({ script: '// partial', skippedIndices: [1] });
+      mockRunTabularEditorScript.mockResolvedValue({ stdout: 'Done', stderr: '' });
+
+      const result = await applyBulkTeFix('HIDDEN_COLUMN', 'run1');
+      expect(result.fixedCount).toBe(1);
+      expect(result.skippedCount).toBe(1);
+
+      // Skipped finding should be marked FAILED
+      expect(mockPrisma.finding.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: { in: ['f2'] } },
+          data: expect.objectContaining({ fixStatus: 'FAILED' }),
+        }),
+      );
+    });
+
+    it('marks all as FAILED when TE script fails', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue(bulkFindings);
+      mockPrisma.finding.updateMany.mockResolvedValue({ count: 2 });
+      mockGenerateBulkFixScript.mockReturnValue({ script: '// script', skippedIndices: [] });
+      mockRunTabularEditorScript.mockRejectedValue(new Error('TE crashed'));
+
+      await expect(applyBulkTeFix('HIDDEN_COLUMN', 'run1')).rejects.toThrow('Bulk TE fix failed');
+
+      // Should mark all fixable findings as FAILED
+      expect(mockPrisma.finding.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ id: { in: ['f1', 'f2'] }, fixStatus: 'IN_PROGRESS' }),
           data: expect.objectContaining({ fixStatus: 'FAILED' }),
         }),
       );

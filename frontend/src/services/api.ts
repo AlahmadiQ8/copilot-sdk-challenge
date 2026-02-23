@@ -150,6 +150,16 @@ export async function applyTeFix(
   return request(`/findings/${encodeURIComponent(findingId)}/te-fix`, { method: 'POST' });
 }
 
+export async function applyBulkTeFix(
+  ruleId: string,
+  analysisRunId: string,
+): Promise<{ ruleId: string; fixedCount: number; skippedCount: number; failedCount: number; status: string }> {
+  return request(`/rules/${encodeURIComponent(ruleId)}/te-fix-all`, {
+    method: 'POST',
+    body: JSON.stringify({ analysisRunId }),
+  });
+}
+
 // ── DAX ──
 
 export async function executeDax(query: string): Promise<DaxQueryResult> {

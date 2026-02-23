@@ -4,6 +4,7 @@ import {
   parseObjectReference,
   parseConsoleOutput,
   generateFixScript,
+  generateBulkFixScript,
   VIOLATION_REGEX,
   TABULAR_EDITOR_PATH_ENV,
   TABULAR_EDITOR_TIMEOUT_ENV,
@@ -389,13 +390,79 @@ describe('generateFixScript', () => {
       .toThrow('not supported for object type: Relationship');
   });
 
-  it('throws when table name cannot be resolved for column', () => {
-    expect(() => generateFixScript('DataColumn', '[Orphan]', 'IsHidden = true'))
-      .toThrow('Cannot resolve table/object name');
+  it('falls back to Model.AllColumns when table name is missing', () => {
+    const script = generateFixScript('DataColumn', '[Orphan]', 'IsHidden = true');
+    expect(script).toContain('Model.AllColumns.First(x => x.Name == "Orphan")');
+    expect(script).toContain('obj.IsHidden = true;');
+  });
+
+  it('falls back to Model.AllMeasures when table name is missing for Measure', () => {
+    const script = generateFixScript('Measure', '[MyMeasure]', 'FormatString = "#,0"');
+    expect(script).toContain('Model.AllMeasures.First(x => x.Name == "MyMeasure")');
+    expect(script).toContain('obj.FormatString = "#,0";');
   });
 
   it('throws when table name cannot be resolved for Table type', () => {
     expect(() => generateFixScript('Table', '[NoTable]', 'IsHidden = true'))
       .toThrow('Cannot resolve table name');
+  });
+});
+
+// ─── generateBulkFixScript ──────────────────────────────────────────
+
+describe('generateBulkFixScript', () => {
+  it('generates combined script for multiple column findings', () => {
+    const findings = [
+      { objectType: 'Column', affectedObject: "'Sales'[Amount]" },
+      { objectType: 'Column', affectedObject: "'Sales'[Qty]" },
+    ];
+    const { script, skippedIndices } = generateBulkFixScript(findings, 'DataType = DataType.Decimal');
+    expect(skippedIndices).toEqual([]);
+    expect(script).toContain('Model.Tables["Sales"].Columns["Amount"]');
+    expect(script).toContain('Model.Tables["Sales"].Columns["Qty"]');
+    expect(script).toContain('obj.DataType = DataType.Decimal;');
+    // Each fix should be wrapped in a block scope
+    expect(script).toContain('{');
+    expect(script).toContain('}');
+  });
+
+  it('skips unsupported types and returns their indices', () => {
+    const findings = [
+      { objectType: 'Column', affectedObject: "'Sales'[Amount]" },
+      { objectType: 'Relationship', affectedObject: "'A'[B] -> 'C'[D]" },
+      { objectType: 'Measure', affectedObject: "'Sales'[Total]" },
+    ];
+    const { script, skippedIndices } = generateBulkFixScript(findings, 'Delete()');
+    expect(skippedIndices).toEqual([1]);
+    expect(script).toContain('Columns["Amount"]');
+    expect(script).toContain('Measures["Total"]');
+    expect(script).not.toContain('Relationship');
+  });
+
+  it('throws when all findings are unsupported', () => {
+    const findings = [
+      { objectType: 'Relationship', affectedObject: "'A'[B] -> 'C'[D]" },
+    ];
+    expect(() => generateBulkFixScript(findings, 'Delete()'))
+      .toThrow('No fixable findings');
+  });
+
+  it('generates block-scoped variables for var reuse', () => {
+    const findings = [
+      { objectType: 'Column', affectedObject: "'T1'[C1]" },
+      { objectType: 'Column', affectedObject: "'T2'[C2]" },
+    ];
+    const { script } = generateBulkFixScript(findings, 'IsHidden = true');
+    // Both blocks should have `var obj`
+    const varMatches = script.match(/var obj/g);
+    expect(varMatches).toHaveLength(2);
+  });
+
+  it('includes comment with affected object for each fix', () => {
+    const findings = [
+      { objectType: 'Column', affectedObject: "'Sales'[Revenue]" },
+    ];
+    const { script } = generateBulkFixScript(findings, 'IsHidden = true');
+    expect(script).toContain("// Fix 1: 'Sales'[Revenue]");
   });
 });
