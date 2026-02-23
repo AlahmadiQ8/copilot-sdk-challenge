@@ -1,6 +1,8 @@
 import { execFile } from 'child_process';
-import { access, constants } from 'fs/promises';
+import { access, constants, writeFile, unlink } from 'fs/promises';
 import { join, dirname } from 'path';
+import { tmpdir } from 'os';
+import { randomUUID } from 'crypto';
 import { fileURLToPath } from 'url';
 import { childLogger } from '../middleware/logger.js';
 
@@ -237,4 +239,120 @@ export async function evaluateRulesWithTabularEditor(
   log.info({ findingCount: findings.length }, 'Tabular Editor analysis complete');
 
   return findings;
+}
+
+// ─── Fix Script Generation ───────────────────────────────────────────
+
+const OBJECT_TYPE_TO_COLLECTION: Record<string, string> = {
+  // Rule-scope names (from BPA rule definitions)
+  DataColumn: 'Columns',
+  CalculatedColumn: 'Columns',
+  CalculatedTableColumn: 'Columns',
+  Measure: 'Measures',
+  Hierarchy: 'Hierarchies',
+  Partition: 'Partitions',
+  KPI: 'Measures',
+  CalculationItem: 'Measures',
+  // TE2 BPA output names (from actual TE2 CLI output)
+  Column: 'Columns',
+  Import: 'Partitions',       // TE2 reports partition type as "Import"
+};
+
+/**
+ * Generate a TE2 C# script that applies a FixExpression to a specific object.
+ *
+ * Returns the script content as a string, or throws if the object type is not
+ * supported for automated fix.
+ */
+export function generateFixScript(
+  objectType: string,
+  affectedObject: string,
+  fixExpression: string,
+): string {
+  const { tableName, objectName } = parseObjectReference(affectedObject);
+
+  // Normalise the FixExpression: replace BPA's `it.` context variable with `obj.`
+  const normalisedExpr = fixExpression.replace(/\bit\./g, 'obj.');
+
+  // Table-level objects (Table, Calculated Table)
+  if (objectType === 'Table' || objectType === 'Calculated Table' || objectType === 'CalculatedTable') {
+    if (!tableName) {
+      throw Object.assign(new Error(`Cannot resolve table name from affected object: ${affectedObject}`), { statusCode: 422 });
+    }
+    const objExpr = `var obj = Model.Tables["${escapeCSharpString(tableName)}"];`;
+    return buildScript(objExpr, normalisedExpr);
+  }
+
+  // Model-level roles
+  if (objectType === 'ModelRole') {
+    const roleName = objectName || tableName || affectedObject.replace(/['\[\]]/g, '').trim();
+    const objExpr = `var obj = Model.Roles["${escapeCSharpString(roleName)}"];`;
+    return buildScript(objExpr, normalisedExpr);
+  }
+
+  // Column / Measure / Hierarchy / Partition-level objects
+  const collection = OBJECT_TYPE_TO_COLLECTION[objectType];
+  if (collection) {
+    if (!tableName || !objectName) {
+      throw Object.assign(
+        new Error(`Cannot resolve table/object name from affected object: ${affectedObject} (type: ${objectType})`),
+        { statusCode: 422 },
+      );
+    }
+    const objExpr = `var obj = Model.Tables["${escapeCSharpString(tableName)}"].${collection}["${escapeCSharpString(objectName)}"];`;
+    return buildScript(objExpr, normalisedExpr);
+  }
+
+  throw Object.assign(
+    new Error(`Automated TE fix is not supported for object type: ${objectType}`),
+    { statusCode: 422 },
+  );
+}
+
+function buildScript(objDeclaration: string, fixExpression: string): string {
+  const stmt = `obj.${fixExpression}`;
+  return `${objDeclaration}\n${stmt};\n`;
+}
+
+function escapeCSharpString(value: string): string {
+  return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+// ─── Fix Execution ───────────────────────────────────────────────────
+
+export async function runTabularEditorScript(
+  serverAddress: string,
+  databaseName: string,
+  scriptContent: string,
+): Promise<TabularEditorResult> {
+  const tePath = await validateTabularEditorPath();
+  const timeout = parseInt(process.env[TABULAR_EDITOR_TIMEOUT_ENV] || '', 10) || DEFAULT_TIMEOUT;
+
+  // Write script to a temp file
+  const scriptPath = join(tmpdir(), `te-fix-${randomUUID()}.cs`);
+  await writeFile(scriptPath, scriptContent, 'utf-8');
+
+  try {
+    return await new Promise<TabularEditorResult>((resolve, reject) => {
+      // Connect, run script, then save back to source with -D (no args)
+      const args = [serverAddress, databaseName, '-S', scriptPath, '-D'];
+
+      execFile(tePath, args, { timeout }, (error, stdout, stderr) => {
+        if (error) {
+          if ('killed' in error && (error as NodeJS.ErrnoException & { killed?: boolean }).killed) {
+            return reject(new Error(`Tabular Editor script timed out after ${timeout / 1000} seconds`));
+          }
+          // TE2 may return exit code 1 even on script success (similar to analysis mode).
+          // If there's no stderr indicating a real failure, treat it as success.
+          if (!stderr) {
+            return resolve({ stdout: stdout || '', stderr: '' });
+          }
+          return reject(new Error(`Tabular Editor script failed (exit ${(error as any).code}): ${stderr}`));
+        }
+        resolve({ stdout: stdout || '', stderr: stderr || '' });
+      });
+    });
+  } finally {
+    await unlink(scriptPath).catch(() => {});
+  }
 }

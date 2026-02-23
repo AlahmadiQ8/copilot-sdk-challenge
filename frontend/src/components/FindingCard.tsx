@@ -3,6 +3,8 @@ import type { Finding } from '../types/api';
 interface FindingCardProps {
   finding: Finding;
   compact?: boolean;
+  onTeFix?: (findingId: string) => void;
+  teFixingId?: string | null;
 }
 
 const severityConfig: Record<number, { label: string; color: string; bg: string; dot: string }> = {
@@ -35,7 +37,7 @@ function parseAffectedObject(raw: string): { object: string; table: string | nul
   return { object: raw, table: null };
 }
 
-export default function FindingCard({ finding, compact }: FindingCardProps) {
+export default function FindingCard({ finding, compact, onTeFix, teFixingId }: FindingCardProps) {
   const sev = severityConfig[finding.severity] || severityConfig[1];
   const fix = fixStatusConfig[finding.fixStatus] || fixStatusConfig.UNFIXED;
 
@@ -67,6 +69,27 @@ export default function FindingCard({ finding, compact }: FindingCardProps) {
           )}
         </div>
 
+        {/* TE Fix button */}
+        {onTeFix && finding.hasAutoFix && finding.fixStatus === 'UNFIXED' && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onTeFix(finding.id); }}
+            disabled={teFixingId === finding.id}
+            className="shrink-0 rounded-md bg-emerald-600/80 px-2 py-1 text-[10px] font-semibold text-white transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-40"
+            aria-label={`Apply Tabular Editor fix for ${finding.affectedObject}`}
+          >
+            {teFixingId === finding.id ? (
+              <span className="flex items-center gap-1">
+                <span className="inline-block h-2.5 w-2.5 animate-spin rounded-full border-[1.5px] border-white/30 border-t-white" />
+                Fixing…
+              </span>
+            ) : (
+              'TE Fix'
+            )}
+          </button>
+        )}
+        {finding.fixStatus === 'IN_PROGRESS' && teFixingId === finding.id && (
+          <span className="shrink-0 text-[10px] font-medium text-amber-400">Applying…</span>
+        )}
         <span className={`shrink-0 text-xs font-medium ${fix.color}`}>{fix.label}</span>
       </div>
     );

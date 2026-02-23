@@ -1,7 +1,38 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { triggerBulkFix, getBulkFixSession, getBulkFixSessionByRule } from '../services/fix.service.js';
+import { triggerBulkFix, getBulkFixSession, getBulkFixSessionByRule, applyTeFix } from '../services/fix.service.js';
 
 export const fixRouter = Router();
+
+/**
+ * @openapi
+ * /api/findings/{findingId}/te-fix:
+ *   post:
+ *     summary: Apply Tabular Editor fix for a single finding
+ *     tags: [Fix]
+ *     parameters:
+ *       - in: path
+ *         name: findingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Fix applied successfully
+ *       404:
+ *         description: Finding not found
+ *       409:
+ *         description: Finding already fixed
+ *       422:
+ *         description: Fix cannot be applied (no fix expression, unsupported type, or not connected)
+ */
+fixRouter.post('/findings/:findingId/te-fix', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await applyTeFix(req.params.findingId as string);
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * @openapi

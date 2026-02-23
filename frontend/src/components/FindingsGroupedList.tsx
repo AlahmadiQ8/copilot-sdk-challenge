@@ -8,6 +8,8 @@ interface FindingsGroupedListProps {
   onInspectBulkSession: (ruleId: string) => void;
   bulkFixingRuleId: string | null;
   defaultCollapsed?: boolean;
+  onTeFix?: (findingId: string) => void;
+  teFixingId?: string | null;
 }
 
 interface RuleGroup {
@@ -31,6 +33,8 @@ export default function FindingsGroupedList({
   onInspectBulkSession,
   bulkFixingRuleId,
   defaultCollapsed = false,
+  onTeFix,
+  teFixingId,
 }: FindingsGroupedListProps) {
   const groups = useMemo(() => {
     const map = new Map<string, RuleGroup>();
@@ -210,6 +214,8 @@ export default function FindingsGroupedList({
                     key={f.id}
                     finding={f}
                     compact
+                    onTeFix={onTeFix}
+                    teFixingId={teFixingId}
                   />
                 ))}
               </div>

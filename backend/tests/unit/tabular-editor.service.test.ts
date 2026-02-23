@@ -3,6 +3,7 @@ import {
   buildRuleLookupMap,
   parseObjectReference,
   parseConsoleOutput,
+  generateFixScript,
   VIOLATION_REGEX,
   TABULAR_EDITOR_PATH_ENV,
   TABULAR_EDITOR_TIMEOUT_ENV,
@@ -311,5 +312,90 @@ describe('runTabularEditor', () => {
     process.env[TABULAR_EDITOR_PATH_ENV] = 'C:\\nonexistent\\TabularEditor.exe';
     const { runTabularEditor } = await import('../../src/services/tabular-editor.service.js');
     await expect(runTabularEditor('localhost:1234', 'db', 'rules.json')).rejects.toThrow('not found at');
+  });
+});
+
+// ─── generateFixScript ───────────────────────────────────────────────
+
+describe('generateFixScript', () => {
+  it('generates script for column property assignment', () => {
+    const script = generateFixScript('DataColumn', "'Sales'[Amount]", 'DataType = DataType.Decimal');
+    expect(script).toContain('Model.Tables["Sales"].Columns["Amount"]');
+    expect(script).toContain('obj.DataType = DataType.Decimal;');
+  });
+
+  it('generates script for CalculatedColumn', () => {
+    const script = generateFixScript('CalculatedColumn', "'Dates'[Year]", 'IsAvailableInMDX = false');
+    expect(script).toContain('Model.Tables["Dates"].Columns["Year"]');
+    expect(script).toContain('obj.IsAvailableInMDX = false;');
+  });
+
+  it('generates script for Measure', () => {
+    const script = generateFixScript('Measure', "'Sales'[Total Revenue]", 'IsHidden = true');
+    expect(script).toContain('Model.Tables["Sales"].Measures["Total Revenue"]');
+    expect(script).toContain('obj.IsHidden = true;');
+  });
+
+  it('generates script for Delete()', () => {
+    const script = generateFixScript('DataColumn', "'Sales'[Unused]", 'Delete()');
+    expect(script).toContain('Model.Tables["Sales"].Columns["Unused"]');
+    expect(script).toContain('obj.Delete();');
+  });
+
+  it('generates script for Table object', () => {
+    const script = generateFixScript('Table', "'Sales'", 'IsHidden = true');
+    expect(script).toContain('Model.Tables["Sales"]');
+    expect(script).toContain('obj.IsHidden = true;');
+  });
+
+  it('generates script for CalculatedTable', () => {
+    const script = generateFixScript('CalculatedTable', "'DateTemplate'", 'Delete()');
+    expect(script).toContain('Model.Tables["DateTemplate"]');
+    expect(script).toContain('obj.Delete();');
+  });
+
+  it('generates script for Calculated Table (space-separated type)', () => {
+    const script = generateFixScript('Calculated Table', "'DateTemplate'", 'Delete()');
+    expect(script).toContain('Model.Tables["DateTemplate"]');
+  });
+
+  it('generates script for ModelRole', () => {
+    const script = generateFixScript('ModelRole', '[EmptyRole]', 'Delete()');
+    expect(script).toContain('Model.Roles["EmptyRole"]');
+    expect(script).toContain('obj.Delete();');
+  });
+
+  it('generates script for Hierarchy', () => {
+    const script = generateFixScript('Hierarchy', "'Products'[Category Hierarchy]", 'IsHidden = true');
+    expect(script).toContain('Model.Tables["Products"].Hierarchies["Category Hierarchy"]');
+    expect(script).toContain('obj.IsHidden = true;');
+  });
+
+  it('replaces it. references with obj.', () => {
+    const fixExpr = 'Name = string.Concat( it.Name.ToCharArray().Select( c => c ) )';
+    const script = generateFixScript('DataColumn', "'Sales'[Col]", fixExpr);
+    expect(script).toContain('obj.Name = string.Concat( obj.Name.ToCharArray().Select( c => c ) );');
+    expect(script).not.toContain('it.');
+  });
+
+  it('escapes double quotes in table/column names', () => {
+    const script = generateFixScript('DataColumn', `'Tab"le'[Col"umn]`, 'IsHidden = true');
+    expect(script).toContain('Tab\\"le');
+    expect(script).toContain('Col\\"umn');
+  });
+
+  it('throws for unsupported object type', () => {
+    expect(() => generateFixScript('Relationship', "'A'[B] -> 'C'[D]", 'Delete()'))
+      .toThrow('not supported for object type: Relationship');
+  });
+
+  it('throws when table name cannot be resolved for column', () => {
+    expect(() => generateFixScript('DataColumn', '[Orphan]', 'IsHidden = true'))
+      .toThrow('Cannot resolve table/object name');
+  });
+
+  it('throws when table name cannot be resolved for Table type', () => {
+    expect(() => generateFixScript('Table', '[NoTable]', 'IsHidden = true'))
+      .toThrow('Cannot resolve table name');
   });
 });

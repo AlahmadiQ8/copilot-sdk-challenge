@@ -23,7 +23,12 @@ vi.mock('../../src/models/prisma.js', () => ({ default: mockPrisma }));
 // Mock MCP client
 const mockCallTool = vi.fn();
 vi.mock('../../src/mcp/client.js', () => ({
-  getConnectionStatus: () => ({ connected: true, databaseName: 'TestModel' }),
+  getConnectionStatus: () => ({
+    connected: true,
+    databaseName: 'TestModel',
+    serverAddress: 'localhost:61460',
+    catalogName: '432a98c1-test-guid',
+  }),
 }));
 
 // Mock rules service
@@ -63,7 +68,15 @@ vi.mock('@github/copilot-sdk', () => ({
   SessionEvent: {},
 }));
 
-const { triggerBulkFix, getBulkFixSession } = await import('../../src/services/fix.service.js');
+// Mock tabular-editor.service for TE fix
+const mockGenerateFixScript = vi.fn().mockReturnValue('var obj = ...; obj.IsHidden = true;');
+const mockRunTabularEditorScript = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+vi.mock('../../src/services/tabular-editor.service.js', () => ({
+  generateFixScript: (...args: unknown[]) => mockGenerateFixScript(...args),
+  runTabularEditorScript: (...args: unknown[]) => mockRunTabularEditorScript(...args),
+}));
+
+const { triggerBulkFix, getBulkFixSession, applyTeFix } = await import('../../src/services/fix.service.js');
 
 describe('fix.service', () => {
   beforeEach(() => {
@@ -153,6 +166,90 @@ describe('fix.service', () => {
     it('throws 404 if session not found', async () => {
       mockPrisma.bulkFixSession.findUnique.mockResolvedValue(null);
       await expect(getBulkFixSession('nonexistent')).rejects.toThrow('Bulk fix session not found');
+    });
+  });
+
+  describe('applyTeFix', () => {
+    const baseFinding = {
+      id: 'f1',
+      ruleId: 'HIDDEN_COLUMN',
+      ruleName: '[Maintenance] Hide foreign key columns',
+      category: 'Maintenance',
+      severity: 2,
+      description: 'FK columns should be hidden',
+      affectedObject: "'Sales'[RegionId]",
+      objectType: 'DataColumn',
+      fixStatus: 'UNFIXED',
+      hasAutoFix: true,
+    };
+
+    it('applies TE fix successfully and marks finding as FIXED', async () => {
+      mockPrisma.finding.findUnique.mockResolvedValue(baseFinding);
+      mockPrisma.finding.update.mockResolvedValue({});
+      mockRunTabularEditorScript.mockResolvedValue({ stdout: 'Success', stderr: '' });
+
+      const result = await applyTeFix('f1');
+      expect(result.status).toBe('FIXED');
+      expect(result.fixSummary).toContain('IsHidden = true');
+
+      // Should mark as IN_PROGRESS first, then FIXED
+      expect(mockPrisma.finding.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'f1' },
+          data: { fixStatus: 'IN_PROGRESS' },
+        }),
+      );
+      expect(mockPrisma.finding.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'f1' },
+          data: expect.objectContaining({ fixStatus: 'FIXED' }),
+        }),
+      );
+
+      // Should call generateFixScript with correct args
+      expect(mockGenerateFixScript).toHaveBeenCalledWith('DataColumn', "'Sales'[RegionId]", 'IsHidden = true');
+
+      // Should call runTabularEditorScript with server/db from connection status
+      expect(mockRunTabularEditorScript).toHaveBeenCalledWith(
+        'localhost:61460',
+        '432a98c1-test-guid',
+        expect.any(String),
+      );
+    });
+
+    it('throws 404 when finding not found', async () => {
+      mockPrisma.finding.findUnique.mockResolvedValue(null);
+      await expect(applyTeFix('nonexistent')).rejects.toThrow('Finding not found');
+    });
+
+    it('throws 409 when finding is already fixed', async () => {
+      mockPrisma.finding.findUnique.mockResolvedValue({ ...baseFinding, fixStatus: 'FIXED' });
+      await expect(applyTeFix('f1')).rejects.toThrow('already fixed');
+    });
+
+    it('throws 422 when finding has no auto-fix', async () => {
+      mockPrisma.finding.findUnique.mockResolvedValue({ ...baseFinding, hasAutoFix: false });
+      await expect(applyTeFix('f1')).rejects.toThrow('does not have an auto-fix');
+    });
+
+    it('throws 422 when rule has no FixExpression', async () => {
+      mockPrisma.finding.findUnique.mockResolvedValue({ ...baseFinding, ruleId: 'NO_FIX_RULE' });
+      await expect(applyTeFix('f1')).rejects.toThrow('No FixExpression found');
+    });
+
+    it('marks finding as FAILED when TE script fails', async () => {
+      mockPrisma.finding.findUnique.mockResolvedValue(baseFinding);
+      mockPrisma.finding.update.mockResolvedValue({});
+      mockRunTabularEditorScript.mockRejectedValue(new Error('Script execution error'));
+
+      await expect(applyTeFix('f1')).rejects.toThrow('TE fix failed');
+
+      expect(mockPrisma.finding.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'f1' },
+          data: expect.objectContaining({ fixStatus: 'FAILED' }),
+        }),
+      );
     });
   });
 });
