@@ -258,6 +258,20 @@ const OBJECT_TYPE_TO_COLLECTION: Record<string, string> = {
   Import: 'Partitions',       // TE2 reports partition type as "Import"
 };
 
+// Model-level "All*" collections for when TE2 output omits the table name
+const OBJECT_TYPE_TO_ALL_COLLECTION: Record<string, string> = {
+  DataColumn: 'AllColumns',
+  CalculatedColumn: 'AllColumns',
+  CalculatedTableColumn: 'AllColumns',
+  Measure: 'AllMeasures',
+  Hierarchy: 'AllHierarchies',
+  Partition: 'AllPartitions',
+  KPI: 'AllMeasures',
+  CalculationItem: 'AllMeasures',
+  Column: 'AllColumns',
+  Import: 'AllPartitions',
+};
+
 /**
  * Generate a TE2 C# script that applies a FixExpression to a specific object.
  *
@@ -293,14 +307,26 @@ export function generateFixScript(
   // Column / Measure / Hierarchy / Partition-level objects
   const collection = OBJECT_TYPE_TO_COLLECTION[objectType];
   if (collection) {
-    if (!tableName || !objectName) {
+    if (!objectName) {
       throw Object.assign(
-        new Error(`Cannot resolve table/object name from affected object: ${affectedObject} (type: ${objectType})`),
+        new Error(`Cannot resolve object name from affected object: ${affectedObject} (type: ${objectType})`),
         { statusCode: 422 },
       );
     }
-    const objExpr = `var obj = Model.Tables["${escapeCSharpString(tableName)}"].${collection}["${escapeCSharpString(objectName)}"];`;
-    return buildScript(objExpr, normalisedExpr);
+    if (tableName) {
+      const objExpr = `var obj = Model.Tables["${escapeCSharpString(tableName)}"].${collection}["${escapeCSharpString(objectName)}"];`;
+      return buildScript(objExpr, normalisedExpr);
+    }
+    // TE2 sometimes omits the table name — fall back to Model.All* with LINQ lookup
+    const allCollection = OBJECT_TYPE_TO_ALL_COLLECTION[objectType];
+    if (allCollection) {
+      const objExpr = `var obj = Model.${allCollection}.First(x => x.Name == "${escapeCSharpString(objectName)}");`;
+      return buildScript(objExpr, normalisedExpr);
+    }
+    throw Object.assign(
+      new Error(`Cannot resolve table name from affected object: ${affectedObject} (type: ${objectType})`),
+      { statusCode: 422 },
+    );
   }
 
   throw Object.assign(
@@ -314,8 +340,45 @@ function buildScript(objDeclaration: string, fixExpression: string): string {
   return `${objDeclaration}\n${stmt};\n`;
 }
 
-function escapeCSharpString(value: string): string {
+export function escapeCSharpString(value: string): string {
   return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+}
+
+/**
+ * Generate a combined TE2 C# script that applies a FixExpression to multiple
+ * objects in one go. Each fix is wrapped in a `{ }` block so `var obj` can be
+ * reused. Returns the script and indices of findings that were skipped because
+ * their object type is unsupported.
+ */
+export function generateBulkFixScript(
+  findings: Array<{ objectType: string; affectedObject: string }>,
+  fixExpression: string,
+): { script: string; skippedIndices: number[] } {
+  const blocks: string[] = [];
+  const skippedIndices: number[] = [];
+
+  for (let i = 0; i < findings.length; i++) {
+    try {
+      const singleScript = generateFixScript(
+        findings[i].objectType,
+        findings[i].affectedObject,
+        fixExpression,
+      );
+      // Wrap in block scope so `var obj` can be reused across fixes
+      blocks.push(`// Fix ${i + 1}: ${findings[i].affectedObject}\n{\n${singleScript.trimEnd()}\n}`);
+    } catch {
+      skippedIndices.push(i);
+    }
+  }
+
+  if (blocks.length === 0) {
+    throw Object.assign(
+      new Error('No fixable findings — all object types are unsupported'),
+      { statusCode: 422 },
+    );
+  }
+
+  return { script: blocks.join('\n\n') + '\n', skippedIndices };
 }
 
 // ─── Fix Execution ───────────────────────────────────────────────────
