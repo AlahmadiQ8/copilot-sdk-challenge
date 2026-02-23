@@ -179,9 +179,9 @@ export default function FindingsGroupedList({
 
               {/* Bulk fix actions (outside the toggle button) */}
               <div className="flex items-center gap-2 pr-4" onClick={(e) => e.stopPropagation()}>
-                {hasAutoFix && unfixedCount > 0 && !isAnyBulkRunning && (
+                {unfixedCount > 0 && !isAnyBulkRunning && (
                   <>
-                    {onBulkTeFix && (
+                    {hasAutoFix && onBulkTeFix && (
                       <button
                         onClick={() => onBulkTeFix(group.ruleId)}
                         className="rounded-md bg-emerald-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-40"
@@ -190,13 +190,15 @@ export default function FindingsGroupedList({
                         TE Fix All ({unfixedCount})
                       </button>
                     )}
-                    <button
-                      onClick={() => onBulkFixTriggered(group.ruleId)}
-                      className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                      aria-label={`AI Fix all ${unfixedCount} violations of ${group.ruleName}`}
-                    >
-                      AI Fix All ({unfixedCount})
-                    </button>
+                    {!hasAutoFix && (
+                      <button
+                        onClick={() => onBulkFixTriggered(group.ruleId)}
+                        className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
+                        aria-label={`AI Fix all ${unfixedCount} violations of ${group.ruleName}`}
+                      >
+                        AI Fix All ({unfixedCount})
+                      </button>
+                    )}
                   </>
                 )}
                 {isBulkTeFix && (
