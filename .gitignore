@@ -1,3 +1,5 @@
+.playwright*
+
 # Dependencies
 node_modules/
 
