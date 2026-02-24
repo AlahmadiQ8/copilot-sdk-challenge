@@ -445,6 +445,13 @@ export function getSSEEmitter(sessionId: string): SSEEmitter | null {
     sendToAI(sessionId, prompt).catch((err) => {
       log.error({ err, sessionId }, 'Failed to send initial prompt');
     });
+  } else if (!active.isProcessing) {
+    // Session is already idle (e.g. resumed or reconnected) — notify the new
+    // SSE consumer so the frontend can clear its "Thinking…" state.
+    // Use process.nextTick so the caller has time to attach its listener first.
+    process.nextTick(() => {
+      active.sseEmitter.emit('sse', { type: 'session_idle' });
+    });
   }
 
   return active.sseEmitter;
