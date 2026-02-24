@@ -12,6 +12,8 @@ interface FindingsGroupedListProps {
   teFixingId?: string | null;
   onBulkTeFix?: (ruleId: string) => void;
   bulkTeFixingRuleId?: string | null;
+  onChatFix?: (ruleId: string) => void;
+  activeChatRuleIds?: Set<string>;
 }
 
 interface RuleGroup {
@@ -39,6 +41,8 @@ export default function FindingsGroupedList({
   teFixingId,
   onBulkTeFix,
   bulkTeFixingRuleId,
+  onChatFix,
+  activeChatRuleIds,
 }: FindingsGroupedListProps) {
   const groups = useMemo(() => {
     const map = new Map<string, RuleGroup>();
@@ -190,16 +194,45 @@ export default function FindingsGroupedList({
                         TE Fix All ({unfixedCount})
                       </button>
                     )}
-                    {!hasAutoFix && (
+                    {!hasAutoFix && onChatFix && (
+                      <button
+                        onClick={() => onChatFix(group.ruleId)}
+                        className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
+                        aria-label={`AI Fix ${unfixedCount} violations of ${group.ruleName}`}
+                      >
+                        AI Fix ({unfixedCount})
+                      </button>
+                    )}
+                    {!hasAutoFix && !onChatFix && (
                       <button
                         onClick={() => onBulkFixTriggered(group.ruleId)}
                         className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                        aria-label={`AI Fix all ${unfixedCount} violations of ${group.ruleName}`}
+                        aria-label={`AI Fix All ${unfixedCount} violations of ${group.ruleName}`}
                       >
                         AI Fix All ({unfixedCount})
                       </button>
                     )}
                   </>
+                )}
+                {/* Resume Chat for rules with active chat sessions */}
+                {unfixedCount > 0 && !isAnyBulkRunning && activeChatRuleIds?.has(group.ruleId) && onChatFix && (
+                  <button
+                    onClick={() => onChatFix(group.ruleId)}
+                    className="rounded-md border border-violet-500/40 bg-violet-600/20 px-3 py-1.5 text-xs font-semibold text-violet-300 shadow-sm transition hover:bg-violet-600/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    aria-label={`Resume chat for ${group.ruleName}`}
+                  >
+                    Resume Chat
+                  </button>
+                )}
+                {/* Resume Chat when all fixed but session exists */}
+                {allDone && !isAnyBulkRunning && activeChatRuleIds?.has(group.ruleId) && onChatFix && (
+                  <button
+                    onClick={() => onChatFix(group.ruleId)}
+                    className="rounded-md border border-violet-500/40 bg-violet-600/20 px-2.5 py-1 text-xs text-violet-300 transition hover:bg-violet-600/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    aria-label={`Resume chat for ${group.ruleName}`}
+                  >
+                    Resume Chat
+                  </button>
                 )}
                 {isBulkTeFix && (
                   <span className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 px-3 py-1.5 text-xs font-medium text-emerald-300">

@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import type { ConnectionStatus, Finding, FindingSummary, AnalysisRun, RunComparison } from '../types/api';
 import * as api from '../services/api';
 import ConnectionPanel from '../components/ConnectionPanel';
@@ -6,6 +6,7 @@ import AnalysisDashboard from '../components/AnalysisDashboard';
 import FindingsFilter from '../components/FindingsFilter';
 import FindingsGroupedList from '../components/FindingsGroupedList';
 import BulkSessionInspector from '../components/BulkSessionInspector';
+import ChatFixPanel from '../components/ChatFixPanel';
 
 interface AnalyzerPageProps {
   connection: ConnectionStatus;
@@ -23,6 +24,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
   const [teFixingId, setTeFixingId] = useState<string | null>(null);
   const [bulkTeFixingRuleId, setBulkTeFixingRuleId] = useState<string | null>(null);
+  const [chatFixRuleId, setChatFixRuleId] = useState<string | null>(null);
+  const [activeChatRuleIds, setActiveChatRuleIds] = useState<Set<string>>(new Set());
 
   // Client-side filters
   const [severity, setSeverity] = useState('');
@@ -215,6 +218,28 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
 
   const hasActiveFilters = !!(severity || category || fixStatus);
 
+  // Fetch active chat sessions to show "Resume Chat" buttons
+  useEffect(() => {
+    if (!currentRun) return;
+    let cancelled = false;
+    api.getActiveChatFixSessions(currentRun.id).then((sessions) => {
+      if (!cancelled) {
+        setActiveChatRuleIds(new Set(sessions.map((s) => s.ruleId)));
+      }
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [currentRun?.id]);
+
+  const handleChatFix = (ruleId: string) => {
+    setChatFixRuleId(ruleId);
+  };
+
+  // Get the rule name for the chat panel header
+  const chatFixRuleName = useMemo(() => {
+    if (!chatFixRuleId) return undefined;
+    return allFindings.find((f) => f.ruleId === chatFixRuleId)?.ruleName;
+  }, [chatFixRuleId, allFindings]);
+
   return (
     <div className="mx-auto max-w-7xl space-y-6 px-4 py-6 lg:px-6 2xl:max-w-[1800px] 2xl:px-8">
       {/* Connection */}
@@ -378,6 +403,8 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
               teFixingId={teFixingId}
               onBulkTeFix={handleBulkTeFix}
               bulkTeFixingRuleId={bulkTeFixingRuleId}
+              onChatFix={handleChatFix}
+              activeChatRuleIds={activeChatRuleIds}
             />
           ) : (
             <p className="py-12 text-center text-sm text-slate-500">
@@ -402,6 +429,24 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
           ruleId={inspectingBulkRuleId}
           analysisRunId={currentRun.id}
           onClose={() => setInspectingBulkRuleId(null)}
+        />
+      )}
+
+      {/* Chat Fix Panel */}
+      {chatFixRuleId && currentRun && (
+        <ChatFixPanel
+          ruleId={chatFixRuleId}
+          analysisRunId={currentRun.id}
+          ruleName={chatFixRuleName}
+          onClose={() => {
+            setChatFixRuleId(null);
+            // Refresh findings after chat session
+            fetchAllFindings(currentRun.id);
+            // Refresh active chat sessions
+            api.getActiveChatFixSessions(currentRun.id).then((sessions) => {
+              setActiveChatRuleIds(new Set(sessions.map((s) => s.ruleId)));
+            }).catch(() => {});
+          }}
         />
       )}
     </div>
