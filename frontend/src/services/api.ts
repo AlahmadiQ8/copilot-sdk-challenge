@@ -10,6 +10,8 @@ import type {
   RunComparison,
   DaxQueryResult,
   DaxQueryHistoryItem,
+  ChatFixSession,
+  ChatFixActiveSession,
 } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -187,4 +189,73 @@ export async function getDaxHistory(
 
 export async function cancelDaxQuery(queryId: string): Promise<{ success: boolean }> {
   return request(`/dax/${encodeURIComponent(queryId)}/cancel`, { method: 'POST' });
+}
+
+// ── Chat Fix ──
+
+export async function createOrResumeChatFixSession(
+  ruleId: string,
+  analysisRunId: string,
+): Promise<ChatFixSession> {
+  return request('/chat-fix/sessions', {
+    method: 'POST',
+    body: JSON.stringify({ ruleId, analysisRunId }),
+  });
+}
+
+export async function getActiveChatFixSessions(
+  analysisRunId: string,
+): Promise<ChatFixActiveSession[]> {
+  return request(`/chat-fix/sessions/active?analysisRunId=${encodeURIComponent(analysisRunId)}`);
+}
+
+export async function sendChatFixMessage(
+  sessionId: string,
+  content: string,
+): Promise<{ ok: boolean }> {
+  return request(`/chat-fix/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    method: 'POST',
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function approveChatFixTool(
+  sessionId: string,
+  proposalId: string,
+): Promise<{ ok: boolean; approved: boolean }> {
+  return request(`/chat-fix/sessions/${encodeURIComponent(sessionId)}/approve`, {
+    method: 'POST',
+    body: JSON.stringify({ proposalId }),
+  });
+}
+
+export async function rejectChatFixTool(
+  sessionId: string,
+  proposalId: string,
+  reason?: string,
+): Promise<{ ok: boolean; approved: boolean }> {
+  return request(`/chat-fix/sessions/${encodeURIComponent(sessionId)}/reject`, {
+    method: 'POST',
+    body: JSON.stringify({ proposalId, reason }),
+  });
+}
+
+export async function restartChatFixSession(
+  sessionId: string,
+): Promise<ChatFixSession> {
+  return request(`/chat-fix/sessions/${encodeURIComponent(sessionId)}/restart`, {
+    method: 'POST',
+  });
+}
+
+export async function closeChatFixSession(
+  sessionId: string,
+): Promise<{ ok: boolean }> {
+  return request(`/chat-fix/sessions/${encodeURIComponent(sessionId)}`, {
+    method: 'DELETE',
+  });
+}
+
+export function createChatFixSSEUrl(sessionId: string): string {
+  return `${API_BASE}/chat-fix/sessions/${encodeURIComponent(sessionId)}/stream`;
 }

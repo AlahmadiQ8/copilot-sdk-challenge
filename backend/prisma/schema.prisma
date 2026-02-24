@@ -74,3 +74,29 @@ model DaxQuery {
   errorMessage    String?
   createdAt       DateTime @default(now())
 }
+
+model ChatFixSession {
+  id               String           @id @default(cuid())
+  ruleId           String
+  analysisRunId    String
+  copilotSessionId String?
+  status           String           @default("ACTIVE")
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  messages         ChatFixMessage[]
+
+  @@index([ruleId, analysisRunId, status])
+}
+
+model ChatFixMessage {
+  id               String         @id @default(cuid())
+  chatFixSessionId String
+  chatFixSession   ChatFixSession @relation(fields: [chatFixSessionId], references: [id], onDelete: Cascade)
+  role             String
+  content          String
+  toolName         String?
+  proposalId       String?
+  approvalStatus   String?
+  ordering         Int
+  timestamp        DateTime       @default(now())
+}

@@ -159,6 +159,50 @@ export interface BpaRule {
   hasFixExpression: boolean;
 }
 
+// ── Chat Fix ──
+export type ChatFixSessionStatus = 'ACTIVE' | 'CLOSED' | 'CLEARED';
+
+export interface ChatFixSession {
+  sessionId: string;
+  ruleId: string;
+  analysisRunId: string;
+  status: string;
+  resumed: boolean;
+  messages: ChatFixMessage[];
+}
+
+export interface ChatFixMessage {
+  id: string;
+  role: string;
+  content: string;
+  toolName: string | null;
+  proposalId: string | null;
+  approvalStatus: string | null;
+  ordering: number;
+  timestamp: string;
+}
+
+export type ChatFixSSEEvent =
+  | { type: 'message_delta'; content: string }
+  | { type: 'message_complete'; content: string }
+  | { type: 'reasoning'; content: string }
+  | { type: 'tool_executing'; toolName: string; args: Record<string, unknown>; isWrite: boolean }
+  | { type: 'tool_result'; toolName: string; result: unknown; isWrite: boolean; proposalId?: string }
+  | { type: 'approval_required'; proposalId: string; toolName: string; operation: string; args: Record<string, unknown>; description: string }
+  | { type: 'approval_resolved'; proposalId: string; approved: boolean; reason?: string }
+  | { type: 'session_idle' }
+  | { type: 'session_resumed'; sessionId: string }
+  | { type: 'session_restarted'; sessionId: string }
+  | { type: 'error'; message: string };
+
+export interface ChatFixActiveSession {
+  id: string;
+  ruleId: string;
+  analysisRunId: string;
+  status: string;
+  createdAt: string;
+}
+
 // ── Common ──
 export interface ErrorResponse {
   error: string;
