@@ -352,10 +352,37 @@ describe('chat-fix.service', () => {
 
       mockSendAndWait.mockClear();
 
-      // Second call does NOT re-trigger
+      // Second call does NOT re-trigger prompt, but emits session_idle for resumed/idle session
       const emitter2 = getSSEEmitter(sessionId);
       expect(emitter2).not.toBeNull();
       expect(mockSendAndWait).not.toHaveBeenCalled();
+    });
+
+    it('emits session_idle via nextTick for idle resumed sessions', async () => {
+      mockPrisma.chatFixSession.findFirst.mockResolvedValue(null);
+      mockPrisma.chatFixSession.create.mockResolvedValue({ id: 'sse-idle', ruleId: 'R1', analysisRunId: 'run1', status: 'ACTIVE' });
+      mockPrisma.chatFixSession.update.mockResolvedValue({});
+      mockPrisma.chatFixMessage.create.mockResolvedValue({});
+      mockPrisma.finding.findMany.mockResolvedValue([]);
+
+      const { sessionId } = await getOrResumeSession('R1', 'run1');
+
+      // First call consumes the deferred prompt (fires sendToAI as fire-and-forget)
+      getSSEEmitter(sessionId);
+      // Let the fire-and-forget sendToAI complete so isProcessing resets to false
+      await new Promise((r) => setTimeout(r, 0));
+      mockSendAndWait.mockClear();
+
+      // Second call should emit session_idle asynchronously (nextTick)
+      const emitter = getSSEEmitter(sessionId)!;
+      const events: unknown[] = [];
+      emitter.on('sse', (data: unknown) => events.push(data));
+
+      // Wait for process.nextTick
+      await new Promise((r) => process.nextTick(r));
+
+      expect(events).toHaveLength(1);
+      expect(events[0]).toEqual({ type: 'session_idle' });
     });
   });
 });
