@@ -1,6 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { useChatFixSession } from '../hooks/useChatFixSession';
 import type { ChatItem } from '../hooks/useChatFixSession';
+import CopilotIcon from './CopilotIcon';
 
 interface ChatFixPanelProps {
   ruleId: string;
@@ -59,7 +61,7 @@ export default function ChatFixPanel({ ruleId, analysisRunId, ruleName, onClose 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-label="AI Fix Chat">
+    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-label="Fix with Copilot">
       {/* Backdrop */}
       <div className="absolute inset-0 bg-black/50" onClick={handleClose} />
 
@@ -68,7 +70,7 @@ export default function ChatFixPanel({ ruleId, analysisRunId, ruleName, onClose 
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-700/50 px-5 py-3">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-100">AI Fix Chat</h2>
+            <h2 className="flex items-center gap-1.5 text-base font-semibold text-slate-100"><CopilotIcon className="h-4 w-4" /> Fix with Copilot</h2>
             {ruleName && <p className="truncate text-xs text-slate-400">{ruleName}</p>}
             {session?.resumed && (
               <span className="mt-0.5 inline-block rounded bg-sky-900/50 px-1.5 py-0.5 text-[10px] font-medium text-sky-300">
@@ -264,22 +266,49 @@ function ChatItemRenderer({
 // ── Sub-components ──
 
 function AssistantContent({ content }: { content: string }) {
-  // Simple markdown-like rendering for code blocks
-  const parts = content.split(/(```[\s\S]*?```)/g);
   return (
-    <>
-      {parts.map((part, i) => {
-        if (part.startsWith('```') && part.endsWith('```')) {
-          const inner = part.slice(3, -3).replace(/^\w+\n/, '');
+    <ReactMarkdown
+      components={{
+        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+        strong: ({ children }) => <strong className="font-semibold text-slate-100">{children}</strong>,
+        em: ({ children }) => <em className="italic text-slate-300">{children}</em>,
+        ul: ({ children }) => <ul className="mb-2 ml-4 list-disc space-y-0.5 last:mb-0">{children}</ul>,
+        ol: ({ children }) => <ol className="mb-2 ml-4 list-decimal space-y-0.5 last:mb-0">{children}</ol>,
+        li: ({ children }) => <li className="text-slate-200">{children}</li>,
+        h1: ({ children }) => <h1 className="mb-1 text-base font-bold text-slate-100">{children}</h1>,
+        h2: ({ children }) => <h2 className="mb-1 text-sm font-bold text-slate-100">{children}</h2>,
+        h3: ({ children }) => <h3 className="mb-1 text-sm font-semibold text-slate-100">{children}</h3>,
+        code: ({ className, children, ...props }) => {
+          const isBlock = className?.includes('language-');
+          if (isBlock) {
+            return (
+              <pre className="my-1.5 overflow-x-auto rounded bg-slate-900 px-2 py-1.5 text-xs text-slate-300">
+                <code {...props}>{children}</code>
+              </pre>
+            );
+          }
           return (
-            <pre key={i} className="my-1.5 overflow-x-auto rounded bg-slate-900 px-2 py-1.5 text-xs text-slate-300">
-              {inner}
-            </pre>
+            <code className="rounded bg-slate-900 px-1 py-0.5 text-xs text-violet-300" {...props}>
+              {children}
+            </code>
           );
-        }
-        return <span key={i}>{part}</span>;
-      })}
-    </>
+        },
+        pre: ({ children }) => <>{children}</>,
+        blockquote: ({ children }) => (
+          <blockquote className="my-1.5 border-l-2 border-slate-600 pl-3 text-slate-400 italic">
+            {children}
+          </blockquote>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} target="_blank" rel="noopener noreferrer" className="text-violet-400 underline hover:text-violet-300">
+            {children}
+          </a>
+        ),
+        hr: () => <hr className="my-2 border-slate-700" />,
+      }}
+    >
+      {content}
+    </ReactMarkdown>
   );
 }
 

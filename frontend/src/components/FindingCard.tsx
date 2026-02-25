@@ -83,7 +83,7 @@ export default function FindingCard({ finding, compact, onTeFix, teFixingId }: F
                 Fixing…
               </span>
             ) : (
-              'TE Fix'
+              'Auto Fix'
             )}
           </button>
         )}
