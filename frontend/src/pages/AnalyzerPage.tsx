@@ -95,6 +95,11 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
       if (run && run.status === 'COMPLETED') {
         await fetchAllFindings(runId);
 
+        // Refresh active chat sessions now that findings exist for this run
+        api.getActiveChatFixSessions(runId).then((sessions) => {
+          setActiveChatRuleIds(new Set(sessions.map((s) => s.ruleId)));
+        }).catch(() => {});
+
         if (previousRunId) {
           try {
             const comp = await api.compareAnalysisRuns(runId, previousRunId);

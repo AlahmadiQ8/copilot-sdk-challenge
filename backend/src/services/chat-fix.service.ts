@@ -68,20 +68,31 @@ export async function getOrResumeSession(
   ruleId: string,
   analysisRunId: string,
 ): Promise<ChatFixSessionInfo> {
-  // Check for existing ACTIVE session in DB
+  // Look for any ACTIVE session for this rule (across all analysis runs)
   const existing = await prisma.chatFixSession.findFirst({
-    where: { ruleId, analysisRunId, status: 'ACTIVE' },
+    where: { ruleId, status: 'ACTIVE' },
     include: { messages: { orderBy: { ordering: 'asc' } } },
+    orderBy: { createdAt: 'desc' },
   });
 
   if (existing) {
+    // If the session was for a different analysis run, migrate it to the current one
+    if (existing.analysisRunId !== analysisRunId) {
+      await prisma.chatFixSession.update({
+        where: { id: existing.id },
+        data: { analysisRunId },
+      });
+      log.info({ sessionId: existing.id, oldRunId: existing.analysisRunId, newRunId: analysisRunId }, 'Migrated chat-fix session to new analysis run');
+    }
     // Check if it's still in memory
     const inMemory = activeSessions.get(existing.id);
     if (inMemory) {
+      // Keep in-memory state in sync with the current analysis run
+      inMemory.analysisRunId = analysisRunId;
       return {
         sessionId: existing.id,
         ruleId: existing.ruleId,
-        analysisRunId: existing.analysisRunId,
+        analysisRunId,
         status: existing.status,
         resumed: true,
         messages: existing.messages.map((m) => ({
@@ -434,8 +445,17 @@ export async function closeSession(sessionId: string): Promise<void> {
 }
 
 export async function getActiveSessions(analysisRunId: string) {
+  // Find rules that have findings in this analysis run
+  const distinctRules = await prisma.finding.findMany({
+    where: { analysisRunId },
+    select: { ruleId: true },
+    distinct: ['ruleId'],
+  });
+  const ruleIds = distinctRules.map((r) => r.ruleId);
+
+  // Return ACTIVE sessions for those rules (regardless of which run created them)
   return prisma.chatFixSession.findMany({
-    where: { analysisRunId, status: 'ACTIVE' },
+    where: { ruleId: { in: ruleIds }, status: 'ACTIVE' },
     select: { id: true, ruleId: true, analysisRunId: true, status: true, createdAt: true },
   });
 }

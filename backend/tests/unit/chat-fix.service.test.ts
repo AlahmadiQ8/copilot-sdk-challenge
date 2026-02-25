@@ -316,7 +316,11 @@ describe('chat-fix.service', () => {
   });
 
   describe('getActiveSessions', () => {
-    it('queries DB for active sessions', async () => {
+    it('queries DB for active sessions by rules in the given analysis run', async () => {
+      mockPrisma.finding.findMany.mockResolvedValue([
+        { ruleId: 'R1' },
+        { ruleId: 'R2' },
+      ]);
       mockPrisma.chatFixSession.findMany.mockResolvedValue([
         { id: 's1', ruleId: 'R1', analysisRunId: 'run1', status: 'ACTIVE', createdAt: new Date() },
       ]);
@@ -324,8 +328,13 @@ describe('chat-fix.service', () => {
       const result = await getActiveSessions('run1');
 
       expect(result).toHaveLength(1);
+      expect(mockPrisma.finding.findMany).toHaveBeenCalledWith({
+        where: { analysisRunId: 'run1' },
+        select: { ruleId: true },
+        distinct: ['ruleId'],
+      });
       expect(mockPrisma.chatFixSession.findMany).toHaveBeenCalledWith({
-        where: { analysisRunId: 'run1', status: 'ACTIVE' },
+        where: { ruleId: { in: ['R1', 'R2'] }, status: 'ACTIVE' },
         select: { id: true, ruleId: true, analysisRunId: true, status: true, createdAt: true },
       });
     });
