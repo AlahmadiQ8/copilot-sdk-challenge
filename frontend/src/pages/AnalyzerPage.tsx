@@ -5,7 +5,6 @@ import ConnectionPanel from '../components/ConnectionPanel';
 import AnalysisDashboard from '../components/AnalysisDashboard';
 import FindingsFilter from '../components/FindingsFilter';
 import FindingsGroupedList from '../components/FindingsGroupedList';
-import BulkSessionInspector from '../components/BulkSessionInspector';
 import ChatFixPanel from '../components/ChatFixPanel';
 
 interface AnalyzerPageProps {
@@ -20,8 +19,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError] = useState('');
   const [comparison, setComparison] = useState<RunComparison | null>(null);
-  const [inspectingBulkRuleId, setInspectingBulkRuleId] = useState<string | null>(null);
-  const [bulkFixingRuleId, setBulkFixingRuleId] = useState<string | null>(null);
   const [teFixingId, setTeFixingId] = useState<string | null>(null);
   const [bulkTeFixingRuleId, setBulkTeFixingRuleId] = useState<string | null>(null);
   const [chatFixRuleId, setChatFixRuleId] = useState<string | null>(null);
@@ -113,46 +110,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
       setError(err instanceof Error ? err.message : 'Failed to start analysis');
     } finally {
       setAnalyzing(false);
-    }
-  };
-
-  const handleBulkFix = async (ruleId: string) => {
-    if (!currentRun) return;
-    setBulkFixingRuleId(ruleId);
-    setInspectingBulkRuleId(ruleId);
-    setError('');
-    try {
-      await api.triggerBulkFix(ruleId, currentRun.id);
-      setAllFindings((prev) =>
-        prev.map((f) =>
-          f.ruleId === ruleId && f.fixStatus === 'UNFIXED'
-            ? { ...f, fixStatus: 'IN_PROGRESS' as const }
-            : f,
-        ),
-      );
-      const pollInterval = setInterval(async () => {
-        if (!currentRun) {
-          clearInterval(pollInterval);
-          return;
-        }
-        try {
-          const result = await api.getFindings(currentRun.id, { limit: 5000 });
-          setAllFindings(result.findings);
-          setSummary(result.summary);
-          const ruleFindings = result.findings.filter((f) => f.ruleId === ruleId);
-          const stillInProgress = ruleFindings.some((f) => f.fixStatus === 'IN_PROGRESS');
-          if (!stillInProgress) {
-            clearInterval(pollInterval);
-            setBulkFixingRuleId(null);
-          }
-        } catch {
-          clearInterval(pollInterval);
-          setBulkFixingRuleId(null);
-        }
-      }, 3000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Bulk fix failed');
-      setBulkFixingRuleId(null);
     }
   };
 
@@ -395,9 +352,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             <FindingsGroupedList
               key={currentRun?.id}
               findings={filteredFindings}
-              onBulkFixTriggered={handleBulkFix}
-              onInspectBulkSession={(ruleId) => setInspectingBulkRuleId(ruleId)}
-              bulkFixingRuleId={bulkFixingRuleId}
               defaultCollapsed
               onTeFix={handleTeFix}
               teFixingId={teFixingId}
@@ -421,15 +375,6 @@ export default function AnalyzerPage({ connection, onConnectionChange }: Analyze
             Run analysis to check your model against best-practice rules.
           </p>
         </div>
-      )}
-
-      {/* Bulk Session Inspector Panel */}
-      {inspectingBulkRuleId && currentRun && (
-        <BulkSessionInspector
-          ruleId={inspectingBulkRuleId}
-          analysisRunId={currentRun.id}
-          onClose={() => setInspectingBulkRuleId(null)}
-        />
       )}
 
       {/* Chat Fix Panel */}

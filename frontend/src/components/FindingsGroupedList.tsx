@@ -5,9 +5,6 @@ import CopilotIcon from './CopilotIcon';
 
 interface FindingsGroupedListProps {
   findings: Finding[];
-  onBulkFixTriggered: (ruleId: string) => void;
-  onInspectBulkSession: (ruleId: string) => void;
-  bulkFixingRuleId: string | null;
   defaultCollapsed?: boolean;
   onTeFix?: (findingId: string) => void;
   teFixingId?: string | null;
@@ -34,9 +31,6 @@ const severityConfig: Record<number, { label: string; color: string; bg: string;
 
 export default function FindingsGroupedList({
   findings,
-  onBulkFixTriggered,
-  onInspectBulkSession,
-  bulkFixingRuleId,
   defaultCollapsed = false,
   onTeFix,
   teFixingId,
@@ -111,9 +105,7 @@ export default function FindingsGroupedList({
         const inProgressCount = group.findings.filter((f) => f.fixStatus === 'IN_PROGRESS').length;
         const failedCount = group.findings.filter((f) => f.fixStatus === 'FAILED').length;
         const hasAutoFix = group.findings.some((f) => f.hasAutoFix);
-        const isBulkFixing = bulkFixingRuleId === group.ruleId || inProgressCount > 0;
         const isBulkTeFix = bulkTeFixingRuleId === group.ruleId;
-        const isAnyBulkRunning = isBulkFixing || isBulkTeFix;
         const allDone = unfixedCount === 0 && inProgressCount === 0;
 
         return (
@@ -184,7 +176,7 @@ export default function FindingsGroupedList({
 
               {/* Bulk fix actions (outside the toggle button) */}
               <div className="flex items-center gap-2 pr-4" onClick={(e) => e.stopPropagation()}>
-                {unfixedCount > 0 && !isAnyBulkRunning && (
+                {unfixedCount > 0 && !isBulkTeFix && (
                   <>
                     {hasAutoFix && onBulkTeFix && (
                       <button
@@ -209,19 +201,10 @@ export default function FindingsGroupedList({
                         {activeChatRuleIds?.has(group.ruleId) ? 'Resume Chat' : `Fix with Copilot (${unfixedCount})`}
                       </button>
                     )}
-                    {!hasAutoFix && !onChatFix && (
-                      <button
-                        onClick={() => onBulkFixTriggered(group.ruleId)}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                        aria-label={`Fix with Copilot: ${unfixedCount} violations of ${group.ruleName}`}
-                      >
-                        <CopilotIcon className="h-3.5 w-3.5" /> Fix with Copilot ({unfixedCount})
-                      </button>
-                    )}
                   </>
                 )}
                 {/* Resume Chat when all fixed but session exists */}
-                {allDone && !isAnyBulkRunning && activeChatRuleIds?.has(group.ruleId) && onChatFix && (
+                {allDone && !isBulkTeFix && activeChatRuleIds?.has(group.ruleId) && onChatFix && (
                   <button
                     onClick={() => onChatFix(group.ruleId)}
                     className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/40 bg-violet-600/20 px-2.5 py-1 text-xs text-violet-300 transition hover:bg-violet-600/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
@@ -235,21 +218,6 @@ export default function FindingsGroupedList({
                     <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400/30 border-t-emerald-400" />
                     Auto Fixing {unfixedCount}…
                   </span>
-                )}
-                {isBulkFixing && !isBulkTeFix && (
-                  <span className="flex items-center gap-1.5 rounded-md bg-violet-600/20 px-3 py-1.5 text-xs font-medium text-violet-300">
-                    <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-violet-400/30 border-t-violet-400" />
-                    Fixing {inProgressCount || unfixedCount}…
-                  </span>
-                )}
-                {allDone && !isAnyBulkRunning && (fixedCount > 0 || failedCount > 0) && (
-                  <button
-                    onClick={() => onInspectBulkSession(group.ruleId)}
-                    className="rounded-md border border-slate-600 px-2.5 py-1 text-xs text-slate-300 transition hover:border-slate-500 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
-                    aria-label={`Inspect bulk fix session for ${group.ruleName}`}
-                  >
-                    Inspect
-                  </button>
                 )}
               </div>
             </div>
@@ -268,7 +236,7 @@ export default function FindingsGroupedList({
                     key={f.id}
                     finding={f}
                     compact
-                    onTeFix={isAnyBulkRunning ? undefined : onTeFix}
+                    onTeFix={isBulkTeFix ? undefined : onTeFix}
                     teFixingId={teFixingId}
                   />
                 ))}
