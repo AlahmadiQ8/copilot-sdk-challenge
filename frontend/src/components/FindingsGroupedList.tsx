@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import type { Finding } from '../types/api';
 import FindingCard from './FindingCard';
+import CopilotIcon from './CopilotIcon';
 
 interface FindingsGroupedListProps {
   findings: Finding[];
@@ -189,27 +190,27 @@ export default function FindingsGroupedList({
                       <button
                         onClick={() => onBulkTeFix(group.ruleId)}
                         className="rounded-md bg-emerald-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 disabled:opacity-40"
-                        aria-label={`TE Fix all ${unfixedCount} violations of ${group.ruleName}`}
+                        aria-label={`Auto Fix all ${unfixedCount} violations of ${group.ruleName}`}
                       >
-                        TE Fix All ({unfixedCount})
+                        Auto Fix All ({unfixedCount})
                       </button>
                     )}
                     {!hasAutoFix && onChatFix && (
                       <button
                         onClick={() => onChatFix(group.ruleId)}
-                        className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                        aria-label={`AI Fix ${unfixedCount} violations of ${group.ruleName}`}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
+                        aria-label={`Fix with Copilot: ${unfixedCount} violations of ${group.ruleName}`}
                       >
-                        AI Fix ({unfixedCount})
+                        <CopilotIcon className="h-3.5 w-3.5" /> Fix with Copilot ({unfixedCount})
                       </button>
                     )}
                     {!hasAutoFix && !onChatFix && (
                       <button
                         onClick={() => onBulkFixTriggered(group.ruleId)}
-                        className="rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                        aria-label={`AI Fix All ${unfixedCount} violations of ${group.ruleName}`}
+                        className="inline-flex items-center gap-1.5 rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
+                        aria-label={`Fix with Copilot: ${unfixedCount} violations of ${group.ruleName}`}
                       >
-                        AI Fix All ({unfixedCount})
+                        <CopilotIcon className="h-3.5 w-3.5" /> Fix with Copilot ({unfixedCount})
                       </button>
                     )}
                   </>
@@ -237,7 +238,7 @@ export default function FindingsGroupedList({
                 {isBulkTeFix && (
                   <span className="flex items-center gap-1.5 rounded-md bg-emerald-600/20 px-3 py-1.5 text-xs font-medium text-emerald-300">
                     <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-emerald-400/30 border-t-emerald-400" />
-                    TE Fixing {unfixedCount}…
+                    Auto Fixing {unfixedCount}…
                   </span>
                 )}
                 {isBulkFixing && !isBulkTeFix && (

@@ -136,8 +136,13 @@ export function useChatFixSession(
     };
 
     es.onerror = () => {
-      // EventSource auto-reconnects, but mark not processing
       setIsProcessing(false);
+      // If the connection was permanently closed (e.g. server returned 404
+      // because the session no longer exists in memory), stop reconnecting.
+      if (es.readyState === EventSource.CLOSED) {
+        cleanupSSE();
+        setError('Connection to session lost. Click Restart to begin a new session.');
+      }
     };
   }, [cleanupSSE]);
 
