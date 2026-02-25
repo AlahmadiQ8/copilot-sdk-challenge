@@ -48,6 +48,17 @@ export async function applyTeFix(findingId: string): Promise<{ findingId: string
     const serverAddress = connStatus.serverAddress!;
     const databaseName = connStatus.catalogName || connStatus.databaseName!;
 
+    // Create AutofixRun record
+    const autofixRun = await prisma.autofixRun.create({
+      data: {
+        analysisRunId: finding.analysisRunId,
+        findingId,
+        ruleId: finding.ruleId,
+        status: 'RUNNING',
+        scriptContent: script,
+      },
+    });
+
     const { stdout, stderr } = await runTabularEditorScript(serverAddress, databaseName, script);
 
     if (stderr) {
@@ -60,6 +71,12 @@ export async function applyTeFix(findingId: string): Promise<{ findingId: string
       data: { fixStatus: 'FIXED', fixSummary: summary },
     });
 
+    // Update AutofixRun to SUCCESS
+    await prisma.autofixRun.update({
+      where: { id: autofixRun.id },
+      data: { status: 'SUCCESS', output: stdout, completedAt: new Date() },
+    });
+
     log.info({ stdout: stdout.substring(0, 200) }, 'TE fix applied successfully');
     return { findingId, status: 'FIXED', fixSummary: summary };
   } catch (err) {
@@ -68,6 +85,13 @@ export async function applyTeFix(findingId: string): Promise<{ findingId: string
       where: { id: findingId },
       data: { fixStatus: 'FAILED', fixSummary: `TE fix failed: ${message}` },
     });
+
+    // Update any RUNNING AutofixRun to FAILED
+    await prisma.autofixRun.updateMany({
+      where: { findingId, status: 'RUNNING' },
+      data: { status: 'FAILED', output: message, completedAt: new Date() },
+    });
+
     log.error({ err }, 'TE fix failed');
     throw Object.assign(new Error(`TE fix failed: ${message}`), { statusCode: 500 });
   }
@@ -130,6 +154,22 @@ export async function applyBulkTeFix(
     const databaseName = connStatus.catalogName || connStatus.databaseName!;
 
     log.info({ scriptLength: script.length, fixableCount: fixableFindings.length }, 'Running bulk TE fix script');
+
+    // Create AutofixRun records for each fixable finding
+    await Promise.all(
+      fixableFindings.map((f) =>
+        prisma.autofixRun.create({
+          data: {
+            analysisRunId,
+            findingId: f.id,
+            ruleId,
+            status: 'RUNNING',
+            scriptContent: script,
+          },
+        }),
+      ),
+    );
+
     const { stderr } = await runTabularEditorScript(serverAddress, databaseName, script);
 
     if (stderr) {
@@ -140,6 +180,12 @@ export async function applyBulkTeFix(
     await prisma.finding.updateMany({
       where: { id: { in: fixableFindings.map((f) => f.id) } },
       data: { fixStatus: 'FIXED', fixSummary: summary },
+    });
+
+    // Mark AutofixRuns as SUCCESS
+    await prisma.autofixRun.updateMany({
+      where: { findingId: { in: fixableFindings.map((f) => f.id) }, status: 'RUNNING' },
+      data: { status: 'SUCCESS', completedAt: new Date() },
     });
 
     log.info({ fixedCount: fixableFindings.length, skippedCount: skippedFindings.length }, 'Bulk TE fix completed');
@@ -156,6 +202,13 @@ export async function applyBulkTeFix(
       where: { id: { in: fixableFindings.map((f) => f.id) }, fixStatus: 'IN_PROGRESS' },
       data: { fixStatus: 'FAILED', fixSummary: `TE bulk fix failed: ${message}` },
     });
+
+    // Mark AutofixRuns as FAILED
+    await prisma.autofixRun.updateMany({
+      where: { findingId: { in: fixableFindings.map((f) => f.id) }, status: 'RUNNING' },
+      data: { status: 'FAILED', output: message, completedAt: new Date() },
+    });
+
     log.error({ err }, 'Bulk TE fix failed');
     throw Object.assign(new Error(`Bulk TE fix failed: ${message}`), { statusCode: 500 });
   }

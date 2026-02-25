@@ -19,6 +19,9 @@ vi.mock('../../src/mcp/client.js', () => ({
 
 // Mock Prisma
 const mockPrisma = {
+  semanticModel: {
+    upsert: vi.fn().mockResolvedValue({}),
+  },
   analysisRun: {
     create: vi.fn(),
     update: vi.fn(),
@@ -62,9 +65,13 @@ const { runAnalysis, getFindings, recheckFinding } = await import('../../src/ser
 const runRecord = {
   id: 'run-1',
   modelName: 'TestModel',
-  serverAddress: 'localhost:12345',
-  databaseName: 'TestModel',
+  modelDatabaseName: 'TestModel',
   status: 'RUNNING',
+  semanticModel: {
+    databaseName: 'TestModel',
+    modelName: 'TestModel',
+    serverAddress: 'localhost:12345',
+  },
 };
 
 describe('analysis.service', () => {
@@ -80,7 +87,7 @@ describe('analysis.service', () => {
     expect(runId).toBe('run-1');
     expect(mockPrisma.analysisRun.create).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: 'RUNNING', databaseName: 'TestModel' }),
+        data: expect.objectContaining({ status: 'RUNNING', modelDatabaseName: 'TestModel' }),
       }),
     );
   });

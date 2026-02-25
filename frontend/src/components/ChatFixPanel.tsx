@@ -256,6 +256,17 @@ function ChatItemRenderer({
         />
       );
 
+    case 'tool_executed':
+      return (
+        <ToolCard
+          icon="🔧"
+          label={item.isWrite ? 'Write Tool' : 'Read Tool'}
+          color={item.isWrite ? 'amber' : 'slate'}
+          toolName={item.toolName}
+          args={item.args}
+        />
+      );
+
     case 'tool_result':
       return (
         <ToolCard

@@ -22,6 +22,7 @@ export type ChatItem =
   | { kind: 'assistant_delta'; content: string }
   | { kind: 'reasoning'; content: string }
   | { kind: 'tool_executing'; toolName: string; args: Record<string, unknown>; isWrite: boolean }
+  | { kind: 'tool_executed'; toolName: string; args: Record<string, unknown>; isWrite: boolean }
   | { kind: 'tool_result'; toolName: string; result: unknown; isWrite: boolean; proposalId?: string }
   | { kind: 'approval_required'; proposalId: string; toolName: string; operation: string; args: Record<string, unknown>; description: string }
   | { kind: 'approval_resolved'; proposalId: string; approved: boolean; reason?: string }
@@ -107,7 +108,18 @@ export function useChatFixSession(
             break;
 
           case 'tool_result':
-            setItems((prev) => [...prev, { kind: 'tool_result', toolName: event.toolName, result: event.result, isWrite: event.isWrite, proposalId: event.proposalId }]);
+            setItems((prev) => {
+              // Mark the last matching tool_executing as completed
+              const updated = [...prev];
+              for (let i = updated.length - 1; i >= 0; i--) {
+                if (updated[i].kind === 'tool_executing' && (updated[i] as { toolName: string }).toolName === event.toolName) {
+                  const exec = updated[i] as { kind: 'tool_executing'; toolName: string; args: Record<string, unknown>; isWrite: boolean };
+                  updated[i] = { kind: 'tool_executed', toolName: exec.toolName, args: exec.args, isWrite: exec.isWrite };
+                  break;
+                }
+              }
+              return [...updated, { kind: 'tool_result', toolName: event.toolName, result: event.result, isWrite: event.isWrite, proposalId: event.proposalId }];
+            });
             break;
 
           case 'approval_required':

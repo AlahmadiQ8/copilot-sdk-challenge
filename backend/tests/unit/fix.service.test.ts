@@ -8,6 +8,11 @@ const mockPrisma = {
     update: vi.fn(),
     updateMany: vi.fn(),
   },
+  autofixRun: {
+    create: vi.fn().mockResolvedValue({ id: 'autofix-1' }),
+    update: vi.fn().mockResolvedValue({}),
+    updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+  },
 };
 vi.mock('../../src/models/prisma.js', () => ({ default: mockPrisma }));
 

@@ -13,6 +13,14 @@ vi.mock('../../src/mcp/client.js', () => ({
   getConnectionStatus: () => mockGetConnectionStatus(),
 }));
 
+// Mock Prisma for SemanticModel upsert
+const mockPrisma = {
+  semanticModel: {
+    upsert: vi.fn().mockResolvedValue({}),
+  },
+};
+vi.mock('../../src/models/prisma.js', () => ({ default: mockPrisma }));
+
 const { getInstances, connect, disconnect, getStatus } = await import(
   '../../src/services/connection.service.js'
 );
@@ -92,12 +100,19 @@ describe('connection.service', () => {
   describe('connect', () => {
     it('calls MCP connect and returns status', async () => {
       mockConnectToModel.mockResolvedValue(undefined);
+      mockGetConnectionStatus.mockReturnValue({
+        connected: true,
+        serverAddress: 'localhost:12345',
+        databaseName: 'TestDB',
+        catalogName: 'test-catalog-guid',
+      });
 
       const status = await connect('localhost:12345', 'TestDB');
       expect(mockConnectToModel).toHaveBeenCalledWith('localhost:12345', 'TestDB');
       expect(status.connected).toBe(true);
       expect(status.databaseName).toBe('TestDB');
       expect(status.connectedAt).toBeDefined();
+      expect(mockPrisma.semanticModel.upsert).toHaveBeenCalled();
     });
   });
 

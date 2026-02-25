@@ -6,6 +6,7 @@ import {
 } from '../mcp/client.js';
 import { logger } from '../middleware/logger.js';
 import type { ConnectionStatus, PbiInstance } from '../types/api.js';
+import prisma from '../models/prisma.js';
 
 export async function getInstances(): Promise<{ instances: PbiInstance[] }> {
   const result = await mcpListInstances();
@@ -48,6 +49,16 @@ export async function connect(
   databaseName: string,
 ): Promise<ConnectionStatus> {
   await connectToModel(serverAddress, databaseName);
+
+  // Upsert SemanticModel so analysis runs can reference it
+  const status = mcpGetStatus();
+  const catalogName = status.catalogName || databaseName;
+  await prisma.semanticModel.upsert({
+    where: { databaseName: catalogName },
+    update: { modelName: databaseName, serverAddress, updatedAt: new Date() },
+    create: { databaseName: catalogName, modelName: databaseName, serverAddress },
+  });
+
   return {
     connected: true,
     modelName: databaseName,

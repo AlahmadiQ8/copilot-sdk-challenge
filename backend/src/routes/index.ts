@@ -6,6 +6,7 @@ import { rulesRouter } from './rules.routes.js';
 import { fixRouter } from './fix.routes.js';
 import { daxRouter } from './dax.routes.js';
 import { chatFixRouter } from './chat-fix.routes.js';
+import { modelRouter } from './model.routes.js';
 
 export function registerRoutes(app: Express) {
   app.use('/api/connection', connectionRouter);
@@ -15,4 +16,5 @@ export function registerRoutes(app: Express) {
   app.use('/api', fixRouter);
   app.use('/api/dax', daxRouter);
   app.use('/api/chat-fix', chatFixRouter);
+  app.use('/api/models', modelRouter);
 }
