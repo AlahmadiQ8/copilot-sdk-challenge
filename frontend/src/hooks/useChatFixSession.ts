@@ -8,6 +8,7 @@ import {
   restartChatFixSession,
   closeChatFixSession,
   createChatFixSSEUrl,
+  getChatFixSessionStatus,
 } from '../services/api';
 
 function tryParseJSON(str: string): unknown {
@@ -55,6 +56,12 @@ export function useChatFixSession(
   const eventSourceRef = useRef<EventSource | null>(null);
   const deltaBufRef = useRef('');
   const sessionIdRef = useRef<string | null>(null);
+  const isProcessingRef = useRef(false);
+
+  // Keep ref in sync so the polling interval can read latest value
+  useEffect(() => {
+    isProcessingRef.current = isProcessing;
+  }, [isProcessing]);
 
   // Cleanup SSE on unmount or session change
   const cleanupSSE = useCallback(() => {
@@ -246,6 +253,34 @@ export function useChatFixSession(
       cleanupSSE();
     };
   }, [ruleId, analysisRunId, connectSSE, cleanupSSE]);
+
+  // ── Polling fallback: catch stuck "Thinking" state ──
+  // If `isProcessing` has been true for a while but the backend says idle,
+  // the SSE event was lost.  Poll every 5s to self-heal.
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const sid = sessionIdRef.current;
+      if (!sid || !isProcessingRef.current) return;
+      try {
+        const { isProcessing: backendBusy } = await getChatFixSessionStatus(sid);
+        if (!backendBusy && isProcessingRef.current) {
+          // Backend is idle but frontend still thinks it's processing — reconcile
+          setIsProcessing(false);
+          setItems((prev) => {
+            const last = prev[prev.length - 1];
+            if (last?.kind === 'assistant_delta') {
+              // Promote any leftover delta to a complete message
+              return [...prev.slice(0, -1), { kind: 'assistant', content: (last as { content: string }).content }];
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Status endpoint unreachable — ignore, SSE will handle eventually
+      }
+    }, 5_000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Actions ──
 

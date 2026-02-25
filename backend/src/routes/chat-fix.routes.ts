@@ -8,6 +8,7 @@ import {
   closeSession,
   getActiveSessions,
   getSSEEmitter,
+  getSessionStatus,
 } from '../services/chat-fix.service.js';
 
 export const chatFixRouter = Router();
@@ -113,11 +114,45 @@ chatFixRouter.get('/sessions/:sessionId/stream', (req: Request, res: Response) =
     res.write(`data: ${JSON.stringify(data)}\n\n`);
   };
 
+  // Heartbeat every 15s to keep the connection alive through proxies/browsers
+  const heartbeat = setInterval(() => {
+    res.write(': heartbeat\n\n');
+  }, 15_000);
+
   emitter.on('sse', handler);
 
   req.on('close', () => {
+    clearInterval(heartbeat);
     emitter.removeListener('sse', handler);
   });
+});
+
+/**
+ * @openapi
+ * /api/chat-fix/sessions/{sessionId}/status:
+ *   get:
+ *     summary: Get session processing status (polling fallback)
+ *     tags: [Chat Fix]
+ *     parameters:
+ *       - in: path
+ *         name: sessionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Session status
+ *       404:
+ *         description: Session not found
+ */
+chatFixRouter.get('/sessions/:sessionId/status', (req: Request, res: Response) => {
+  const sessionId = req.params.sessionId as string;
+  const status = getSessionStatus(sessionId);
+  if (!status) {
+    res.status(404).json({ error: 'Session not found or not active' });
+    return;
+  }
+  res.json(status);
 });
 
 /**

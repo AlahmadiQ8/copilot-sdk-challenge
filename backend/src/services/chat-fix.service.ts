@@ -356,7 +356,12 @@ async function sendToAI(sessionId: string, content: string): Promise<void> {
     log.error({ err, sessionId }, 'sendAndWait failed');
     active.sseEmitter.emit('sse', { type: 'error', message });
   } finally {
-    active.isProcessing = false;
+    // Guard: only emit session_idle if the SDK's session.idle event didn't fire
+    // (e.g. sendAndWait threw before the SDK could emit its own idle event).
+    if (active.isProcessing) {
+      active.isProcessing = false;
+      active.sseEmitter.emit('sse', { type: 'session_idle' });
+    }
   }
 }
 
@@ -458,6 +463,12 @@ export async function getActiveSessions(analysisRunId: string) {
     where: { ruleId: { in: ruleIds }, status: 'ACTIVE' },
     select: { id: true, ruleId: true, analysisRunId: true, status: true, createdAt: true },
   });
+}
+
+export function getSessionStatus(sessionId: string): { isProcessing: boolean } | null {
+  const active = activeSessions.get(sessionId);
+  if (!active) return null;
+  return { isProcessing: active.isProcessing };
 }
 
 export function getSSEEmitter(sessionId: string): SSEEmitter | null {
