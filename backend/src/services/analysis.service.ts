@@ -15,11 +15,20 @@ export async function runAnalysis(): Promise<string> {
   // Validate TE path early, before creating the analysis run record
   await validateTabularEditorPath();
 
+  const catalogName = connStatus.catalogName || connStatus.databaseName || '';
+  const modelName = connStatus.databaseName || 'Unknown';
+
+  // Ensure SemanticModel exists (idempotent)
+  await prisma.semanticModel.upsert({
+    where: { databaseName: catalogName },
+    update: { modelName, serverAddress: connStatus.serverAddress || '', updatedAt: new Date() },
+    create: { databaseName: catalogName, modelName, serverAddress: connStatus.serverAddress || '' },
+  });
+
   const run = await prisma.analysisRun.create({
     data: {
-      modelName: connStatus.databaseName || 'Unknown',
-      serverAddress: connStatus.serverAddress || '',
-      databaseName: connStatus.catalogName || connStatus.databaseName || '',
+      modelDatabaseName: catalogName,
+      modelName,
       status: 'RUNNING',
     },
   });
@@ -37,15 +46,18 @@ async function processAnalysis(runId: string, log: ReturnType<typeof childLogger
   try {
     log.info('Starting analysis');
 
-    const run = await prisma.analysisRun.findUnique({ where: { id: runId } });
+    const run = await prisma.analysisRun.findUnique({
+      where: { id: runId },
+      include: { semanticModel: true },
+    });
     if (!run) throw new Error(`Analysis run ${runId} not found`);
 
     const rules = await getRawRules();
     log.info({ ruleCount: rules.length }, 'Rules loaded');
 
     const allFindings = await evaluateRulesWithTabularEditor(
-      run.serverAddress,
-      run.databaseName,
+      run.semanticModel.serverAddress,
+      run.semanticModel.databaseName,
       rules,
       log,
     );
@@ -102,7 +114,7 @@ async function processAnalysis(runId: string, log: ReturnType<typeof childLogger
 export async function getAnalysisRun(runId: string) {
   return prisma.analysisRun.findUnique({
     where: { id: runId },
-    include: { findings: true },
+    include: { findings: true, semanticModel: true },
   });
 }
 
@@ -168,7 +180,7 @@ export async function getFindings(
 export async function getFinding(findingId: string) {
   return prisma.finding.findUnique({
     where: { id: findingId },
-    include: { fixSession: true },
+    include: { autofixRuns: { orderBy: { startedAt: 'desc' } } },
   });
 }
 

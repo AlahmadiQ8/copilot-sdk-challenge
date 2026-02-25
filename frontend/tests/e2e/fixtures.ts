@@ -98,6 +98,29 @@ async function setupMockRoutes(page: Page): Promise<void> {
       pattern: /\/api\/dax\/[^/]+\/cancel/,
       handler: (route) => route.fulfill({ json: { success: true } }),
     },
+    // ── Chat Fix ──
+    {
+      pattern: '**/api/chat-fix/sessions/active*',
+      handler: (route) => route.fulfill({ json: mockResponses.chatFixActiveSessions }),
+    },
+    {
+      pattern: /\/api\/chat-fix\/sessions\/[^/]+\/stream/,
+      handler: (route) =>
+        route.fulfill({
+          status: 200,
+          headers: { 'Content-Type': 'text/event-stream' },
+          body: mockResponses.chatFixSSEBody,
+        }),
+    },
+    {
+      pattern: '**/api/chat-fix/sessions',
+      handler: (route) => {
+        if (route.request().method() === 'POST') {
+          return route.fulfill({ json: mockResponses.chatFixSession });
+        }
+        return route.fulfill({ json: [] });
+      },
+    },
   ];
 
   for (const { pattern, handler } of handlers) {

@@ -5,6 +5,7 @@ const findingId3 = 'finding-003-mock';
 const findingId4 = 'finding-004-mock';
 const findingId5 = 'finding-005-mock';
 const fixSessionId = 'fix-session-001-mock';
+const chatFixSessionId = 'chatfix-session-001-mock';
 
 export const mockResponses = {
   // ── Connection ──
@@ -70,7 +71,7 @@ export const mockResponses = {
         objectType: 'Relationship',
         fixStatus: 'UNFIXED',
         fixSummary: null,
-        hasAutoFix: true,
+        hasAutoFix: false,
         createdAt: new Date().toISOString(),
       },
       {
@@ -267,6 +268,56 @@ export const mockResponses = {
     query: "EVALUATE\nSUMMARIZECOLUMNS(\n  'Calendar'[Year],\n  \"TotalSales\", SUM('Sales'[Amount])\n)",
     explanation: 'This query summarizes total sales by year using the Calendar and Sales tables.',
   },
+
+  // ── Chat Fix ──
+  chatFixSession: {
+    sessionId: chatFixSessionId,
+    ruleId: 'AVOID_INACTIVE_RELATIONSHIPS',
+    analysisRunId: runId,
+    status: 'ACTIVE',
+    resumed: false,
+    messages: [],
+  },
+
+  chatFixActiveSessions: [] as Array<{ id: string; ruleId: string; analysisRunId: string; status: string; createdAt: string }>,
+
+  chatFixResumedSession: {
+    sessionId: chatFixSessionId,
+    ruleId: 'AVOID_INACTIVE_RELATIONSHIPS',
+    analysisRunId: runId,
+    status: 'ACTIVE',
+    resumed: true,
+    messages: [
+      {
+        id: 'msg-1',
+        role: 'system',
+        content: 'You are a Power BI modeling expert.',
+        toolName: null,
+        proposalId: null,
+        approvalStatus: null,
+        ordering: 1,
+        timestamp: new Date(Date.now() - 5000).toISOString(),
+      },
+      {
+        id: 'msg-2',
+        role: 'assistant',
+        content: 'I found an inactive relationship between Sales[OrderDate] and Calendar[Date]. I recommend removing it.',
+        toolName: null,
+        proposalId: null,
+        approvalStatus: null,
+        ordering: 2,
+        timestamp: new Date(Date.now() - 4000).toISOString(),
+      },
+    ],
+  },
+
+  chatFixSSEBody: [
+    `data: ${JSON.stringify({ type: 'tool_executing', toolName: 'relationship_operations', args: { request: { operation: 'List' } }, isWrite: false })}\n\n`,
+    `data: ${JSON.stringify({ type: 'tool_result', toolName: 'relationship_operations', result: { content: [{ type: 'text', text: 'Found 3 relationships' }] }, isWrite: false })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_delta', content: 'I analyzed the model and ' })}\n\n`,
+    `data: ${JSON.stringify({ type: 'message_complete', content: 'I analyzed the model and found the inactive relationship to remove.' })}\n\n`,
+    `data: ${JSON.stringify({ type: 'session_idle' })}\n\n`,
+  ].join(''),
 
   daxHistory: {
     queries: [

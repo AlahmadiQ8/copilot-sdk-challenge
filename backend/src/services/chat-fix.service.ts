@@ -93,7 +93,13 @@ export async function getOrResumeSession(
 
     // Resume: recreate CopilotClient session
     try {
-      await initCopilotSession(existing.id, ruleId, analysisRunId, existing.copilotSessionId);
+      const active = await initCopilotSession(existing.id, ruleId, analysisRunId, existing.copilotSessionId);
+
+      // The Copilot SDK session was recreated (the in-memory state was lost),
+      // so re-trigger the initial AI prompt when the SSE consumer connects.
+      const initialPrompt = await buildInitialPrompt(ruleId, analysisRunId);
+      active.pendingInitialPrompt = initialPrompt;
+
       return {
         sessionId: existing.id,
         ruleId,

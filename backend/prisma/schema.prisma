@@ -7,18 +7,29 @@ generator client {
   output   = "../generated/prisma"
 }
 
-model AnalysisRun {
-  id            String    @id @default(cuid())
+model SemanticModel {
+  databaseName  String        @id
   modelName     String
   serverAddress String
-  databaseName  String
-  startedAt     DateTime  @default(now())
-  completedAt   DateTime?
-  status        String    @default("RUNNING")
-  errorCount    Int       @default(0)
-  warningCount  Int       @default(0)
-  infoCount     Int       @default(0)
-  findings      Finding[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  analysisRuns  AnalysisRun[]
+}
+
+model AnalysisRun {
+  id                String            @id @default(cuid())
+  modelDatabaseName String
+  semanticModel     SemanticModel     @relation(fields: [modelDatabaseName], references: [databaseName], onDelete: Cascade)
+  modelName         String
+  startedAt         DateTime          @default(now())
+  completedAt       DateTime?
+  status            String            @default("RUNNING")
+  errorCount        Int               @default(0)
+  warningCount      Int               @default(0)
+  infoCount         Int               @default(0)
+  findings          Finding[]
+  chatFixSessions   ChatFixSession[]
+  autofixRuns       AutofixRun[]
 }
 
 model Finding {
@@ -37,6 +48,21 @@ model Finding {
   hasAutoFix      Boolean      @default(false)
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
+  autofixRuns     AutofixRun[]
+}
+
+model AutofixRun {
+  id              String       @id @default(cuid())
+  analysisRunId   String
+  analysisRun     AnalysisRun  @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
+  findingId       String
+  finding         Finding      @relation(fields: [findingId], references: [id], onDelete: Cascade)
+  ruleId          String
+  status          String       @default("PENDING")
+  scriptContent   String?
+  output          String?
+  startedAt       DateTime     @default(now())
+  completedAt     DateTime?
 }
 
 model DaxQuery {
@@ -55,6 +81,7 @@ model ChatFixSession {
   id               String           @id @default(cuid())
   ruleId           String
   analysisRunId    String
+  analysisRun      AnalysisRun      @relation(fields: [analysisRunId], references: [id], onDelete: Cascade)
   copilotSessionId String?
   status           String           @default("ACTIVE")
   createdAt        DateTime         @default(now())

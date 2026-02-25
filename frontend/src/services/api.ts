@@ -10,6 +10,8 @@ import type {
   DaxQueryHistoryItem,
   ChatFixSession,
   ChatFixActiveSession,
+  SemanticModel,
+  AutofixRun,
 } from '../types/api';
 
 const API_BASE = import.meta.env.VITE_API_URL || '/api';
@@ -231,4 +233,32 @@ export async function closeChatFixSession(
 
 export function createChatFixSSEUrl(sessionId: string): string {
   return `${API_BASE}/chat-fix/sessions/${encodeURIComponent(sessionId)}/stream`;
+}
+
+// ── Semantic Models ──
+
+export async function listModels(): Promise<SemanticModel[]> {
+  return request('/models');
+}
+
+export async function getModel(databaseName: string): Promise<SemanticModel & { analysisRuns: AnalysisRun[] }> {
+  return request(`/models/${encodeURIComponent(databaseName)}`);
+}
+
+export async function getModelRuns(
+  databaseName: string,
+  limit = 20,
+  offset = 0,
+): Promise<{ runs: AnalysisRun[]; total: number }> {
+  return request(`/models/${encodeURIComponent(databaseName)}/runs?limit=${limit}&offset=${offset}`);
+}
+
+export async function deleteModel(databaseName: string): Promise<{ ok: boolean }> {
+  return request(`/models/${encodeURIComponent(databaseName)}`, { method: 'DELETE' });
+}
+
+// ── Autofix History ──
+
+export async function getAutofixHistory(findingId: string): Promise<AutofixRun[]> {
+  return request(`/findings/${encodeURIComponent(findingId)}/autofixes`);
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { getFindings, getFinding } from '../services/analysis.service.js';
 import { createError } from '../middleware/errorHandler.js';
+import prisma from '../models/prisma.js';
 
 export const findingsRouter = Router();
 
@@ -130,6 +131,34 @@ findingsRouter.get('/findings/:findingId', async (req, res, next) => {
       throw createError(404, 'Finding not found');
     }
     res.json(finding);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * @openapi
+ * /api/findings/{findingId}/autofixes:
+ *   get:
+ *     summary: Get autofix history for a finding
+ *     tags: [Findings]
+ *     parameters:
+ *       - in: path
+ *         name: findingId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of autofix runs for this finding
+ */
+findingsRouter.get('/findings/:findingId/autofixes', async (req, res, next) => {
+  try {
+    const autofixes = await prisma.autofixRun.findMany({
+      where: { findingId: req.params.findingId },
+      orderBy: { startedAt: 'desc' },
+    });
+    res.json(autofixes);
   } catch (err) {
     next(err);
   }

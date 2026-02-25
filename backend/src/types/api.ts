@@ -24,12 +24,34 @@ export interface ConnectionStatus {
 export interface AnalysisRunResponse {
   id: string;
   modelName: string;
+  modelDatabaseName: string;
   status: 'RUNNING' | 'COMPLETED' | 'FAILED';
   startedAt: string;
   completedAt: string | null;
   errorCount: number;
   warningCount: number;
   infoCount: number;
+  semanticModel?: SemanticModelResponse;
+}
+
+export interface SemanticModelResponse {
+  databaseName: string;
+  modelName: string;
+  serverAddress: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AutofixRunResponse {
+  id: string;
+  analysisRunId: string;
+  findingId: string;
+  ruleId: string;
+  status: string;
+  scriptContent: string | null;
+  output: string | null;
+  startedAt: string;
+  completedAt: string | null;
 }
 
 export interface FindingSummary {
