@@ -10,6 +10,10 @@ import {
   createChatFixSSEUrl,
 } from '../services/api';
 
+function tryParseJSON(str: string): unknown {
+  try { return JSON.parse(str); } catch { return str; }
+}
+
 // ── Chat item types rendered in the UI ──
 
 export type ChatItem =
@@ -170,12 +174,43 @@ export function useChatFixSession(
 
         // Restore history for resumed sessions
         if (sess.resumed && sess.messages.length > 0) {
-          const restored: ChatItem[] = sess.messages
-            .filter((m) => m.role === 'user' || m.role === 'assistant')
-            .map((m) => ({
-              kind: m.role as 'user' | 'assistant',
-              content: m.content,
-            }));
+          const restored: ChatItem[] = [];
+          for (const m of sess.messages) {
+            switch (m.role) {
+              case 'user':
+                restored.push({ kind: 'user', content: m.content });
+                break;
+              case 'assistant':
+                restored.push({ kind: 'assistant', content: m.content });
+                break;
+              case 'reasoning':
+                restored.push({ kind: 'reasoning', content: m.content });
+                break;
+              case 'tool_result':
+                restored.push({
+                  kind: 'tool_result',
+                  toolName: m.toolName || 'unknown',
+                  result: tryParseJSON(m.content),
+                  isWrite: false,
+                  proposalId: m.proposalId ?? undefined,
+                });
+                break;
+              case 'approval':
+                restored.push({
+                  kind: 'approval_resolved',
+                  proposalId: m.proposalId || '',
+                  approved: m.approvalStatus === 'approved',
+                  reason: m.approvalStatus === 'rejected' ? m.content : undefined,
+                });
+                break;
+              case 'error':
+                restored.push({ kind: 'error', message: m.content });
+                break;
+              // Skip 'system' and 'tool_call' — not useful for display
+              default:
+                break;
+            }
+          }
           setItems(restored);
         } else {
           setItems([]);

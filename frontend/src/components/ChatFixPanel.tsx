@@ -26,8 +26,22 @@ export default function ChatFixPanel({ ruleId, analysisRunId, ruleName, onClose 
   } = useChatFixSession(ruleId, analysisRunId);
 
   const [input, setInput] = useState('');
+  const [menuOpen, setMenuOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close kebab menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
 
   // Auto-scroll
   useEffect(() => {
@@ -55,8 +69,9 @@ export default function ChatFixPanel({ ruleId, analysisRunId, ruleName, onClose 
     }
   };
 
-  const handleClose = async () => {
-    await close();
+  const handleClose = () => {
+    // Just dismiss the panel — keep the session alive so it can be resumed.
+    // The useEffect cleanup will close the SSE connection on unmount.
     onClose();
   };
 
@@ -78,21 +93,47 @@ export default function ChatFixPanel({ ruleId, analysisRunId, ruleName, onClose 
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={restart}
-              disabled={isConnecting}
-              className="rounded-md px-2.5 py-1 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-slate-200 disabled:opacity-40"
-              title="Clear & restart"
-            >
-              ↻ Restart
-            </button>
+          <div className="flex items-center gap-1">
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={() => setMenuOpen((p) => !p)}
+                className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
+                aria-label="Session options"
+                aria-haspopup="true"
+                aria-expanded={menuOpen}
+              >
+                <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 16 16">
+                  <circle cx="8" cy="3" r="1.5" />
+                  <circle cx="8" cy="8" r="1.5" />
+                  <circle cx="8" cy="13" r="1.5" />
+                </svg>
+              </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-full z-10 mt-1 w-44 rounded-lg border border-slate-700 bg-slate-800 py-1 shadow-xl">
+                  <button
+                    onClick={() => { setMenuOpen(false); restart(); }}
+                    disabled={isConnecting}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-slate-300 transition hover:bg-slate-700 disabled:opacity-40"
+                  >
+                    ↻ Restart conversation
+                  </button>
+                  <button
+                    onClick={() => { setMenuOpen(false); close().then(onClose); }}
+                    className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-xs text-red-400 transition hover:bg-slate-700"
+                  >
+                    ✕ End session
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={handleClose}
               className="rounded-md p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400"
               aria-label="Close chat"
             >
-              ✕
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         </div>

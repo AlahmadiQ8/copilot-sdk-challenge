@@ -198,10 +198,15 @@ export default function FindingsGroupedList({
                     {!hasAutoFix && onChatFix && (
                       <button
                         onClick={() => onChatFix(group.ruleId)}
-                        className="inline-flex items-center gap-1.5 rounded-md bg-violet-600/80 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition hover:bg-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40"
-                        aria-label={`Fix with Copilot: ${unfixedCount} violations of ${group.ruleName}`}
+                        className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold shadow-sm transition focus:outline-none focus:ring-2 focus:ring-violet-400 disabled:opacity-40 ${
+                          activeChatRuleIds?.has(group.ruleId)
+                            ? 'border border-violet-500/40 bg-violet-600/20 text-violet-300 hover:bg-violet-600/30'
+                            : 'bg-violet-600/80 text-white hover:bg-violet-500'
+                        }`}
+                        aria-label={activeChatRuleIds?.has(group.ruleId) ? `Resume chat for ${group.ruleName}` : `Fix with Copilot: ${unfixedCount} violations of ${group.ruleName}`}
                       >
-                        <CopilotIcon className="h-3.5 w-3.5" /> Fix with Copilot ({unfixedCount})
+                        <CopilotIcon className="h-3.5 w-3.5" />
+                        {activeChatRuleIds?.has(group.ruleId) ? 'Resume Chat' : `Fix with Copilot (${unfixedCount})`}
                       </button>
                     )}
                     {!hasAutoFix && !onChatFix && (
@@ -215,24 +220,14 @@ export default function FindingsGroupedList({
                     )}
                   </>
                 )}
-                {/* Resume Chat for rules with active chat sessions */}
-                {unfixedCount > 0 && !isAnyBulkRunning && activeChatRuleIds?.has(group.ruleId) && onChatFix && (
-                  <button
-                    onClick={() => onChatFix(group.ruleId)}
-                    className="rounded-md border border-violet-500/40 bg-violet-600/20 px-3 py-1.5 text-xs font-semibold text-violet-300 shadow-sm transition hover:bg-violet-600/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
-                    aria-label={`Resume chat for ${group.ruleName}`}
-                  >
-                    Resume Chat
-                  </button>
-                )}
                 {/* Resume Chat when all fixed but session exists */}
                 {allDone && !isAnyBulkRunning && activeChatRuleIds?.has(group.ruleId) && onChatFix && (
                   <button
                     onClick={() => onChatFix(group.ruleId)}
-                    className="rounded-md border border-violet-500/40 bg-violet-600/20 px-2.5 py-1 text-xs text-violet-300 transition hover:bg-violet-600/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-violet-500/40 bg-violet-600/20 px-2.5 py-1 text-xs text-violet-300 transition hover:bg-violet-600/30 focus:outline-none focus:ring-2 focus:ring-violet-400"
                     aria-label={`Resume chat for ${group.ruleName}`}
                   >
-                    Resume Chat
+                    <CopilotIcon className="h-3 w-3" /> Resume Chat
                   </button>
                 )}
                 {isBulkTeFix && (
