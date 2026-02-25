@@ -281,6 +281,11 @@ export const mockResponses = {
 
   chatFixActiveSessions: [] as Array<{ id: string; ruleId: string; analysisRunId: string; status: string; createdAt: string }>,
 
+  // Active session from a previous analysis run (for cross-run resume testing)
+  chatFixActiveSessionsWithPrior: [
+    { id: chatFixSessionId, ruleId: 'AVOID_INACTIVE_RELATIONSHIPS', analysisRunId: 'run-old-mock', status: 'ACTIVE', createdAt: new Date(Date.now() - 60000).toISOString() },
+  ] as Array<{ id: string; ruleId: string; analysisRunId: string; status: string; createdAt: string }>,
+
   chatFixResumedSession: {
     sessionId: chatFixSessionId,
     ruleId: 'AVOID_INACTIVE_RELATIONSHIPS',

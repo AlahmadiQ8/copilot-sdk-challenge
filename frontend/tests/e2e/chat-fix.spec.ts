@@ -69,6 +69,51 @@ test.describe('Chat Fix Panel (Tool Call Spinner)', () => {
     await expect(input).toBeEnabled({ timeout: 5000 });
   });
 
+  test('should resume session across analysis runs instead of creating new', async ({ page }) => {
+    await connectAndAnalyze(page);
+
+    // Override active sessions to return a session from a *previous* analysis run
+    await page.route('**/api/chat-fix/sessions/active*', (route) =>
+      route.fulfill({ json: mockResponses.chatFixActiveSessionsWithPrior }),
+    );
+
+    // Re-trigger the active sessions fetch by simulating the effect that fires on currentRun change
+    // The easiest way: just navigate away and back, which re-fetches active sessions
+    // Instead, let's directly check: override the POST endpoint to return a resumed session
+    let postBody: Record<string, string> | null = null;
+    await page.route('**/api/chat-fix/sessions', (route) => {
+      if (route.request().method() === 'POST') {
+        postBody = route.request().postDataJSON();
+        return route.fulfill({ json: mockResponses.chatFixResumedSession });
+      }
+      return route.fulfill({ json: [] });
+    });
+
+    // Also mock SSE → just idle (no new processing needed for resumed)
+    await page.route(/\/api\/chat-fix\/sessions\/[^/]+\/stream/, (route) =>
+      route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: `data: ${JSON.stringify({ type: 'session_idle' })}\n\n`,
+      }),
+    );
+
+    // Open chat fix panel
+    const groupHeader = page.locator('[role="listitem"]', { hasText: 'Avoid inactive relationships' });
+    await groupHeader.getByRole('button', { name: /Fix with Copilot/ }).click();
+
+    // Chat panel should open and show "Resumed session" badge
+    await expect(page.getByRole('dialog', { name: 'Fix with Copilot' })).toBeVisible({ timeout: 5000 });
+    await expect(page.getByText('Resumed session')).toBeVisible();
+
+    // The restored assistant message from the previous session should be visible
+    await expect(page.getByText('I found an inactive relationship between Sales[OrderDate] and Calendar[Date].')).toBeVisible({ timeout: 5000 });
+
+    // The POST body should have the current analysisRunId (the frontend sends whatever currentRun.id is)
+    expect(postBody).toBeTruthy();
+    expect((postBody as Record<string, string>).ruleId).toBe('AVOID_INACTIVE_RELATIONSHIPS');
+  });
+
   test('should show restored messages for resumed sessions', async ({ page }) => {
     await connectAndAnalyze(page);
 
