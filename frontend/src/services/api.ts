@@ -235,6 +235,12 @@ export function createChatFixSSEUrl(sessionId: string): string {
   return `${API_BASE}/chat-fix/sessions/${encodeURIComponent(sessionId)}/stream`;
 }
 
+export async function getChatFixSessionStatus(
+  sessionId: string,
+): Promise<{ isProcessing: boolean }> {
+  return request(`/chat-fix/sessions/${encodeURIComponent(sessionId)}/status`);
+}
+
 // ── Semantic Models ──
 
 export async function listModels(): Promise<SemanticModel[]> {
