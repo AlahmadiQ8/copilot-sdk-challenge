@@ -88,35 +88,6 @@ export interface RunComparison {
   new: RunComparisonItem[];
 }
 
-// ── Fix Types ──
-export type FixSessionStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-export type StepEventType = 'reasoning' | 'tool_call' | 'tool_result' | 'message' | 'error';
-
-export interface FixSessionStep {
-  id: string;
-  stepNumber: number;
-  eventType: StepEventType;
-  content: string;
-  timestamp: string;
-}
-
-// ── Bulk Fix Session ──
-export interface BulkFixSession {
-  id: string;
-  ruleId: string;
-  analysisRunId: string;
-  status: FixSessionStatus;
-  totalFindings: number;
-  fixedCount: number;
-  failedCount: number;
-  startedAt: string;
-  completedAt: string | null;
-}
-
-export interface BulkFixSessionDetail extends BulkFixSession {
-  steps: FixSessionStep[];
-}
-
 // ── DAX ──
 export interface DaxQueryRequest {
   query: string;

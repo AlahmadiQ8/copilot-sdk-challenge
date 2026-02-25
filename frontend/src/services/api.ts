@@ -5,8 +5,6 @@ import type {
   FindingsListResponse,
   Finding,
   BpaRule,
-  BulkFixSession,
-  BulkFixSessionDetail,
   RunComparison,
   DaxQueryResult,
   DaxQueryHistoryItem,
@@ -117,31 +115,6 @@ export async function getFinding(findingId: string): Promise<Finding> {
 export async function getRules(category?: string): Promise<BpaRule[]> {
   const qs = category ? `?category=${encodeURIComponent(category)}` : '';
   return request(`/rules${qs}`);
-}
-
-// ── Bulk Fix ──
-
-export async function triggerBulkFix(
-  ruleId: string,
-  analysisRunId: string,
-): Promise<BulkFixSession> {
-  return request(`/rules/${encodeURIComponent(ruleId)}/fix-all`, {
-    method: 'POST',
-    body: JSON.stringify({ analysisRunId }),
-  });
-}
-
-export async function getBulkFixSession(sessionId: string): Promise<BulkFixSessionDetail> {
-  return request(`/bulk-fix/${encodeURIComponent(sessionId)}`);
-}
-
-export async function getBulkFixSessionByRule(
-  ruleId: string,
-  analysisRunId: string,
-): Promise<BulkFixSessionDetail> {
-  return request(
-    `/bulk-fix/by-rule/${encodeURIComponent(ruleId)}?analysisRunId=${encodeURIComponent(analysisRunId)}`,
-  );
 }
 
 // ── Tabular Editor Fix ──
