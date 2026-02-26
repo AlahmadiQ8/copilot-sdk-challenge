@@ -13,6 +13,14 @@ A [community workflow](https://community.fabric.microsoft.com/t5/Power-BI-Commun
 ![Architecture Diagram](assets/architecture-diagram.png)
 
 
+## Prerequisites
+
+- **Node.js** 18+
+- **Power BI Desktop** with a semantic model open
+- **GitHub Copilot** authenticated (`copilot --version`)
+- **[Power BI Modeling MCP Server](https://marketplace.visualstudio.com/items?itemName=analysis-services.powerbi-modeling-mcp)** (VS Code extension or standalone exe)
+- **Tabular Editor 2** (bundled in `TabularEditor.2.27.2/`, or provide your own path)
+
 ## Quick Start
 
 ```bash
@@ -32,8 +40,6 @@ PBI_MCP_COMMAND=C:\path\to\powerbi-modeling-mcp.exe
 PBI_MCP_ARGS=--start
 TABULAR_EDITOR_PATH=..\TabularEditor.2.27.2\TabularEditor.exe
 ```
-
-**Requires:** Node 18+, Power BI Desktop (model open), GitHub Copilot auth, [Power BI Modeling MCP Server](https://marketplace.visualstudio.com/items?itemName=analysis-services.powerbi-modeling-mcp)
 
 ## [Full Documentation](./docs/README.md)
 
