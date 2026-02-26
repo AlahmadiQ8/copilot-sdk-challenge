@@ -8,7 +8,7 @@ A [community workflow](https://community.fabric.microsoft.com/t5/Power-BI-Commun
 
 ![Architecture Diagram](assets/architecture-diagram.png)
 
-> [Demo Video](#) <!-- TODO: replace with actual link -->
+> [Demo Video](https://youtu.be/xYDh9zKUyOI) 
 
 ## Quick Start
 

@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1280, height=720">
+<title>YouTube Thumbnail</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@700&family=Plus+Jakarta+Sans:wght@600;800&display=swap');
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    width: 1280px;
+    height: 720px;
+    overflow: hidden;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    background: #0a0a0f;
+    position: relative;
+  }
+
+  /* Gradient mesh background */
+  .bg {
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 60% 50% at 15% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 70%),
+      radial-gradient(ellipse 50% 60% at 85% 20%, rgba(168, 85, 247, 0.12) 0%, transparent 70%),
+      radial-gradient(ellipse 80% 40% at 50% 50%, rgba(14, 165, 233, 0.08) 0%, transparent 70%);
+  }
+
+  /* Grid pattern overlay */
+  .grid-overlay {
+    position: absolute;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* Accent line at top */
+  .accent-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4);
+  }
+
+  .content {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    padding: 56px 64px;
+    gap: 48px;
+  }
+
+  /* Left side — text */
+  .left {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 28px;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(59, 130, 246, 0.12);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: 6px;
+    padding: 8px 16px;
+    width: fit-content;
+  }
+
+  .badge span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #60a5fa;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .badge .dot {
+    width: 8px;
+    height: 8px;
+    background: #3b82f6;
+    border-radius: 50%;
+    box-shadow: 0 0 8px rgba(59, 130, 246, 0.6);
+  }
+
+  h1 {
+    font-size: 58px;
+    font-weight: 800;
+    line-height: 1.05;
+    color: #f1f5f9;
+    letter-spacing: -0.03em;
+  }
+
+  h1 .highlight {
+    background: linear-gradient(135deg, #60a5fa, #a78bfa);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .subtitle {
+    font-size: 22px;
+    font-weight: 600;
+    color: #94a3b8;
+    line-height: 1.4;
+    max-width: 520px;
+  }
+
+  /* Right side — visual */
+  .right {
+    width: 420px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+  }
+
+  /* Floating cards representing the workflow */
+  .card {
+    position: absolute;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 20px 24px;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .card-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    flex-shrink: 0;
+  }
+
+  .card-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .card-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #64748b;
+  }
+
+  .card-value {
+    font-size: 17px;
+    font-weight: 800;
+    color: #e2e8f0;
+    white-space: nowrap;
+  }
+
+  /* Card 1: Analyze */
+  .card-analyze {
+    top: 40px;
+    right: 20px;
+    transform: rotate(-2deg);
+  }
+  .card-analyze .card-icon {
+    background: rgba(234, 179, 8, 0.15);
+    color: #facc15;
+  }
+
+  /* Card 2: Fix */
+  .card-fix {
+    top: 200px;
+    left: 0px;
+    transform: rotate(1.5deg);
+    border-color: rgba(59, 130, 246, 0.2);
+  }
+  .card-fix .card-icon {
+    background: rgba(59, 130, 246, 0.15);
+    color: #60a5fa;
+  }
+
+  /* Card 3: Verify */
+  .card-verify {
+    bottom: 80px;
+    right: 40px;
+    transform: rotate(-1deg);
+  }
+  .card-verify .card-icon {
+    background: rgba(34, 197, 94, 0.15);
+    color: #4ade80;
+  }
+
+  /* Approval badge floating */
+  .approval {
+    position: absolute;
+    top: 360px;
+    left: 50px;
+    background: rgba(251, 146, 60, 0.1);
+    border: 1px solid rgba(251, 146, 60, 0.3);
+    border-radius: 8px;
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transform: rotate(2deg);
+  }
+
+  .approval .pulse {
+    width: 10px;
+    height: 10px;
+    background: #fb923c;
+    border-radius: 50%;
+    box-shadow: 0 0 10px rgba(251, 146, 60, 0.5);
+  }
+
+  .approval span {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #fb923c;
+    letter-spacing: 0.03em;
+  }
+
+  /* Connector lines */
+  .connector {
+    position: absolute;
+    z-index: -1;
+  }
+
+  .connector svg {
+    overflow: visible;
+  }
+
+  .connector-1 {
+    top: 110px;
+    right: 200px;
+  }
+
+  .connector-2 {
+    top: 310px;
+    right: 140px;
+  }
+
+  /* Tech logos bar at bottom */
+  .tech-bar {
+    position: absolute;
+    bottom: 32px;
+    left: 64px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .tech-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #475569;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .tech-item .icon {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .divider {
+    width: 1px;
+    height: 16px;
+    background: #1e293b;
+  }
+</style>
+</head>
+<body>
+  <div class="bg"></div>
+  <div class="grid-overlay"></div>
+  <div class="accent-bar"></div>
+
+  <div class="content">
+    <div class="left">
+      <div class="badge">
+        <div class="dot"></div>
+        <span>GitHub Copilot SDK</span>
+      </div>
+
+      <h1>
+        Power BI<br>
+        <span class="highlight">BPA Auto-Fix</span>
+      </h1>
+
+      <div class="subtitle">
+        Analyze 71 rules. Fix with AI.<br>
+        Approve every write. Verify in one click.
+      </div>
+    </div>
+
+    <div class="right">
+      <!-- Card: Analyze -->
+      <div class="card card-analyze">
+        <div class="card-icon">&#x1F50D;</div>
+        <div class="card-text">
+          <div class="card-label">Analyze</div>
+          <div class="card-value">71 BPA Rules</div>
+        </div>
+      </div>
+
+      <!-- Connector -->
+      <div class="connector connector-1">
+        <svg width="60" height="80">
+          <path d="M 50 0 Q 30 40 10 80" stroke="rgba(100,116,139,0.25)" stroke-width="2" fill="none" stroke-dasharray="6 4"/>
+        </svg>
+      </div>
+
+      <!-- Card: Fix -->
+      <div class="card card-fix">
+        <div class="card-icon">&#x1F916;</div>
+        <div class="card-text">
+          <div class="card-label">AI Fix</div>
+          <div class="card-value">Copilot SDK Agent</div>
+        </div>
+      </div>
+
+      <!-- Approval badge -->
+      <div class="approval">
+        <div class="pulse"></div>
+        <span>Approve Write?</span>
+      </div>
+
+      <!-- Connector -->
+      <div class="connector connector-2">
+        <svg width="60" height="80">
+          <path d="M 10 0 Q 30 40 50 80" stroke="rgba(100,116,139,0.25)" stroke-width="2" fill="none" stroke-dasharray="6 4"/>
+        </svg>
+      </div>
+
+      <!-- Card: Verify -->
+      <div class="card card-verify">
+        <div class="card-icon">&#x2705;</div>
+        <div class="card-text">
+          <div class="card-label">Verify</div>
+          <div class="card-value">One-Click Rerun</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tech-bar">
+    <div class="tech-item">
+      <span class="icon">&#9881;</span> Tabular Editor 2
+    </div>
+    <div class="divider"></div>
+    <div class="tech-item">
+      <span class="icon">&#128268;</span> MCP Server
+    </div>
+    <div class="divider"></div>
+    <div class="tech-item">
+      <span class="icon">&#9883;</span> React + Express
+    </div>
+    <div class="divider"></div>
+    <div class="tech-item">
+      <span class="icon">&#128202;</span> Power BI Desktop
+    </div>
+  </div>
+</body>
+</html>
