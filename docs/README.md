@@ -22,11 +22,20 @@ This project takes that idea further. Now that the **GitHub Copilot SDK** is ava
 
 ## Architecture
 
-![Architecture Diagram](../assets/architecture-diagram.png)
+```mermaid
+graph LR
+    User[Browser] --> App[Web App<br>React + Express]
+    App --> SDK[GitHub Copilot SDK<br>AI Agent · Human Approval]
+    App --> TE[Tabular Editor 2<br>71 BPA Rules · CLI]
+    SDK -- "MCP Tools" --> MCP[Power BI MCP Server<br>Model Context Protocol]
+    MCP -- "XMLA" --> Model[Semantic Model<br>Power BI Desktop]
+    TE -- "XMLA" --> Model
+    App --> DB[(SQLite via Prisma<br>Findings · Sessions · Approvals)]
+```
 
 The **React frontend** talks to an **Express backend** that orchestrates three systems: **Tabular Editor 2 CLI** for rule evaluation, the **GitHub Copilot SDK** for AI agent sessions, and the **Power BI Modeling MCP Server** for model read/write. Everything is persisted in **SQLite via Prisma** — findings, sessions, tool calls, approvals.
 
-> Interactive diagram: [architecture-diagram.html](../assets/architecture-diagram.html)
+> Full diagram: [architecture-diagram.png](../assets/architecture-diagram.png) · [interactive version](../assets/architecture-diagram.html)
 
 ---
 
@@ -102,5 +111,3 @@ cd frontend && npm run test:e2e:live      # Playwright (live backend + PBI Deskt
 **Transparency** — Every session is fully inspectable: reasoning steps, tool calls with parameters, approval decisions. All persisted in the database.
 
 **Data privacy** — Model analysis runs locally via Tabular Editor CLI. AI interactions go through GitHub Copilot's enterprise infrastructure. No model data is exported.
-
-**Limitations** — AI fixes are suggestions and may not be correct for complex patterns. Always review before approving. Use alongside expert review for production models.

@@ -1,5 +1,7 @@
 # Power BI Best Practices Analyzer & AI Auto-Fix
 
+Analyze Power BI models against best practice rules and fix violations with a GitHub Copilot Agent
+
 > **GitHub Copilot SDK Challenge Submission**
 
 A [community workflow](https://community.fabric.microsoft.com/t5/Power-BI-Community-Blog/Automate-Power-BI-Model-Optimization-Best-Practice-Analyzer/ba-p/5000187) showed that Tabular Editor BPA + AI fixes via MCP is a powerful combination. This project takes it further with the **GitHub Copilot SDK** — embedding the full analyze-fix-verify loop into one web app with programmatic approval gates, real-time agent streaming, and a persistent audit trail.
