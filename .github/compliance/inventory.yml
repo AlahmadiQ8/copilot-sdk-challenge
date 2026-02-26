@@ -1,5 +1,0 @@
-inventory:
-- source: DirectOwners
-  items:
-  - id: momohammad@microsoft.com
-  isProduction: false
