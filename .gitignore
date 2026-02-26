@@ -45,3 +45,6 @@ frontend/.vite/
 
 # TypeScript
 *.tsbuildinfo
+
+# Tabular Editor (bundled binary)
+TabularEditor.2.27.2/
