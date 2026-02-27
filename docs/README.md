@@ -104,7 +104,11 @@ cd frontend && npm run test:e2e:live      # Playwright (live backend + PBI Deskt
 
 **Production build**: `cd frontend && npm run build` + `cd backend && npm run build`
 
-**Production considerations**: PostgreSQL for concurrency, auth layer, reverse proxy (nginx / Azure App Service), Azure Key Vault for secrets, Azure Container Apps for containerization.
+---
+
+## Potential Enhancements 
+
+It would be more user friendly to ship this as a electron app. However, i started with a simple web app because it was easier to test the ui with playwright.
 
 ---
 
