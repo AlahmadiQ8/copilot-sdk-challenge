@@ -55,7 +55,11 @@ Key APIs: `CopilotClient`, `createSession`, `resumeSession`, `sendAndWait`, `def
 
 ### Prerequisites
 
-Node 18+ · Power BI Desktop (model open) · GitHub Copilot auth · [Power BI Modeling MCP Server](https://marketplace.visualstudio.com/items?itemName=analysis-services.powerbi-modeling-mcp) · Windows
+- Node.js 18+
+- Power BI Desktop with a semantic model open
+- GitHub Copilot authenticated (copilot --version)
+- Power BI Modeling MCP Server (VS Code extension or standalone exe)
+- Tabular Editor 2 (bundled in TabularEditor.2.27.2/, or provide your own path)
 
 ### Install
 
