@@ -3,7 +3,7 @@
 Analyze Power BI models against best practice rules and fix violations with a GitHub Copilot Agent
 
 > \> [Demo Video](https://youtu.be/xYDh9zKUyOI) <br>
-> \> [Slides](./assets/slides.pdf)
+> \> [Slides](https://alahmadiq8.github.io/slides/slides/powerbi-bpa-autofix.html)
 
 *GitHub Copilot SDK Challenge Submission*
 
